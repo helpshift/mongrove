@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [update])
   (:require
     [clojure.set :as cset]
+    [clojure.tools.logging :as ctl]
     [mongrove.conversion :as conversion])
   (:import
     (com.mongodb
@@ -199,7 +200,6 @@
         conn (MongoClients/create settings)]
     conn))
 
-;; @TODO : support for :fongo
 
 (defmethod connect :default
   [_ _]
@@ -377,7 +377,7 @@
 
   (def mongo-coll "mongo")
 
-  (query test-db mongo-coll {} :sort-by {:age 1})
+  (ctl/info nil (query test-db mongo-coll {} :sort-by {:age 1}))
 
   (count-docs test-db mongo-coll {:age {:$lt 10}})
 
