@@ -9,4 +9,8 @@
   :repl-options {:init-ns mongrove.core}
   :jvm-opts ^:replace ["-Duser.timezone=UTC"
                        "-Dloglevel=DEBUG"
-                       "-Ddebuglogfile=debug.log"])
+                       "-Ddebuglogfile=debug.log"]
+  :profiles {:dev {:dependencies [[clj-time "0.15.2"]
+                                  [circleci/bond "0.3.1"]
+                                  [org.clojure/test.check "1.1.0"]
+                                  [com.gfredericks/test.chuck "0.2.10"]]}})
