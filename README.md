@@ -4,7 +4,32 @@ A Clojure library designed to interact with MongoDB.
 
 ## Usage
 
-FIXME
+```clojure
+(def client (connect :replica-set [{:host "shiva.local"
+                                      :port 27017
+                                      :opts {:read-preference :primary}}]))
+  (def test-db (get-db client "test_driver"))
+
+  (def mongo-coll "mongo")
+
+  (ctl/info nil (query test-db mongo-coll {} :sort-by {:age 1}))
+
+  (count-docs test-db mongo-coll {:age {:$lt 10}})
+
+  (count-docs test-db mongo-coll {})
+
+  (doseq [i (range 10)]
+    (insert test-db mongo-coll {:id i
+                                :name (str "rhishikesh-user-" i)
+                                :age (rand-int 20)
+                                :dob (java.util.Date.)} :multi? false))
+
+  (fetch-one test-db mongo-coll {:id 3} :only [:name])
+
+  (delete test-db mongo-coll {:age {:$gt 10}})
+
+  (update test-db mongo-coll {:age {:$lt 10}} {:$inc {:age 1}})
+```
 
 ## License
 
