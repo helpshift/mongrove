@@ -174,7 +174,7 @@
 
 (defmulti connect
   "Initialize the MongoDB Connection. Mongo Client Opts, if any, are taken from
-  the first server-spec. Ref. `server-options' for a list of default opts
+  the first server-spec. Ref. `client-settings' fn for a list of default opts
   that are applied to the Mongo Client."
   {:arglists '([:direct {:host host :port port :opts opts}]
                [:replica-set [{:host host :port port :opts opts} & more]])}
@@ -211,9 +211,19 @@
   (.getDatabase client db-name))
 
 
+(defn ^:public-api get-databases
+  [^MongoClient client]
+  (.listDatabases client))
+
+
+(defn ^:public-api get-database-names
+  [^MongoClient client]
+  (.listDatabaseNames client))
+
+
 (defn ^:public-api ^MongoCollection get-collection
-  ([^MongoDatabase db ^String coll ^WriteConcern write-concern]
-   (.withWriteConcern (.getCollection db coll) (get write-concern-map write-concern)))
+  ([^MongoDatabase db ^String coll write-concern]
+   (.withWriteConcern (.getCollection db coll) ^WriteConcern (get write-concern-map write-concern)))
   ([^MongoDatabase db ^String coll]
    (get-collection db coll :majority)))
 
