@@ -81,7 +81,9 @@
     (let [client @shared-connection
           dbs (mc/get-databases client)]
       (is (not (nil? dbs)))
-      (is (map #(instance? MongoDatabase %) dbs)))))
+      (doseq [db dbs]
+        (is (map? db))
+        (is (= #{:name :empty :sizeOnDisk} (set (keys db))))))))
 
 
 (deftest get-databases-names-test
@@ -89,7 +91,8 @@
     (let [client @shared-connection
           dbs (mc/get-database-names client)]
       (is (not (nil? dbs)))
-      (is (map #(string? %) dbs)))))
+      (doseq [db dbs]
+        (is (string? db))))))
 
 
 (deftest get-db-test
@@ -120,13 +123,30 @@
     (let [client @shared-connection
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           created-colls (for [i (range 10)]
-                          (let [coll-name (str "coll-" (.toString (java.util.UUID/randomUUID)))]
-                            (mc/insert db coll-name {:a i})
-                            coll-name))
+                          (str "coll-" (.toString (java.util.UUID/randomUUID))))
+          _ (doseq [c created-colls]
+              (mc/insert db c {:a (rand-int 42)}))
           colls (mc/get-collection-names db)]
       (is (not (nil? colls)))
-      (is (map #(instance? MongoCollection %) colls))
+      (doseq [c colls]
+        (is (string? c)))
       (is (= (set created-colls) (set colls))))))
+
+
+(deftest drop-collections-test
+  (testing "Drop collection objects from db"
+    (let [client @shared-connection
+          db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
+          _ (doseq [i (range 10)]
+              (let [coll-name (str "coll-" (.toString (java.util.UUID/randomUUID)))]
+                (mc/insert db coll-name {:a i})
+                coll-name))
+          colls (mc/get-collection-names db)
+          drop-colls (take 5 colls)]
+      (doseq [dc drop-colls]
+        (mc/drop-collection db dc))
+      (let [remaining-colls (mc/get-collection-names db)]
+        (is (= remaining-colls (drop 5 colls)))))))
 
 
 (deftest indexes-test

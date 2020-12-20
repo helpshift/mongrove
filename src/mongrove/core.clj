@@ -230,13 +230,13 @@
 (defn ^:public-api get-databases
   "Get all databases available in the given mongo server."
   [^MongoClient client]
-  (.listDatabases client))
+  (conversion/from-bson-document (seq (.listDatabases client)) true))
 
 
 (defn ^:public-api get-database-names
   "Get all database names available in the given mongo server."
   [^MongoClient client]
-  (.listDatabaseNames client))
+  (seq (.listDatabaseNames client)))
 
 
 (defn ^:public-api ^MongoCollection get-collection
@@ -251,7 +251,7 @@
 (defn ^:public-api get-collection-names
   "Returns names of all the collections for the given db"
   [^MongoDatabase db]
-  (.listCollectionNames db))
+  (seq (.listCollectionNames db)))
 
 
 (defn ^:public-api drop-collection
