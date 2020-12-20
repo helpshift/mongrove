@@ -155,6 +155,12 @@
 (defn ^MongoClientSettings client-settings
   [{:keys [read-preference read-concern write-concern
            retry-reads retry-writes] :as opts}]
+  {:pre [(or (nil? read-preference)
+             (read-preference-map read-preference))
+         (or (nil? read-concern)
+             (read-concern-map read-concern))
+         (or (nil? write-concern)
+             (write-concern-map write-concern))]}
   (let [opts (merge default-opts opts)
         {:keys [read-preference read-concern write-concern
                 retry-reads retry-writes]} opts
@@ -223,6 +229,7 @@
 
 (defn ^:public-api ^MongoCollection get-collection
   ([^MongoDatabase db ^String coll write-concern]
+   {:pre [(write-concern-map write-concern)]}
    (.withWriteConcern (.getCollection db coll) ^WriteConcern (get write-concern-map write-concern)))
   ([^MongoDatabase db ^String coll]
    (get-collection db coll :majority)))
@@ -252,6 +259,8 @@
    maps and set multi? as true."
   [^MongoDatabase db ^String coll docs & {multi? :multi? write-concern :write-concern
                                           :or {multi? false write-concern :majority}}]
+  {:pre [(or (nil? write-concern)
+             (write-concern-map write-concern))]}
   (let [collection (get-collection db coll write-concern)
         bson-docs (conversion/to-bson-document docs)]
     (if multi?
@@ -311,6 +320,8 @@
   Else the default write-concern is used."
   [^MongoDatabase db ^String coll query & {write-concern :write-concern
                                            :or {write-concern :majority}}]
+  {:pre [(or (nil? write-concern)
+             (write-concern-map write-concern))]}
   (let [collection (get-collection db coll write-concern)
         bson-query (conversion/to-bson-document query)]
     (.deleteMany collection bson-query)))
@@ -321,6 +332,8 @@
    Optionally upsert."
   [^MongoDatabase db ^String coll query doc & {upsert? :upsert? multi? :multi? write-concern :write-concern
                                                :or {upsert? false multi? false write-concern :majority}}]
+  {:pre [(or (nil? write-concern)
+             (write-concern-map write-concern))]}
   (let [collection ^MongoCollection (get-collection db coll write-concern)
         bson-query (conversion/to-bson-document query)
         bson-update (conversion/to-bson-document doc)
