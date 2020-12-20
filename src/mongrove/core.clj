@@ -359,22 +359,37 @@
 (defn ^:public-api create-index
   "Ensure that the given index on the collection exists.
    Inexpensive if the index already exists.
+   index-spec is map like : {:field 1 :another-field -1}
+   1 indicates ascending index, -1 indicated descending index
+   To ensure order of the fields in a compound index,
+   always use an array map like : (array-map :field 1 :another-field -1)
    Supports option :unique (boolean) => creates a unique index"
-  [^MongoDatabase db ^String coll index-spec options]
+  ([^MongoDatabase db ^String coll index-spec]
+   (create-index db coll index-spec nil))
+  ([^MongoDatabase db ^String coll index-spec options]
+   (let [collection (get-collection db coll)
+         allowed-options (select-keys options [:unique])
+         indexes (group-by second index-spec)
+         ascending (map (comp name first) (get indexes 1))
+         descending (map (comp name first) (get indexes -1))
+         index ^Bson (Indexes/compoundIndex [(Indexes/ascending ascending)
+                                             (Indexes/descending descending)])]
+     (if (seq allowed-options)
+       (.createIndex collection
+                     index
+                     (.unique (IndexOptions.)
+                              (:unique allowed-options)))
+       (.createIndex collection
+                     index)))))
+
+
+(defn ^:public-api get-indexes
+  "Get indexes for a given collection"
+  [^MongoDatabase db ^String coll]
   (let [collection (get-collection db coll)
-        allowed-options (select-keys options [:unique])
-        indexes (group-by second index-spec)
-        ascending (map (comp name first) (get indexes 1))
-        descending (map (comp name first) (get indexes -1))
-        index ^Bson (Indexes/compoundIndex [(Indexes/ascending ascending)
-                                            (Indexes/descending descending)])]
-    (if (seq allowed-options)
-      (.createIndex collection
-                    index
-                    (.unique (IndexOptions.)
-                             (:unique allowed-options)))
-      (.createIndex collection
-                    index))))
+        iterator (.listIndexes collection)
+        cursor (.cursor iterator)]
+    (clean (m-cursor-iterate cursor true))))
 
 ;;;
 ;;; Util
@@ -430,5 +445,9 @@
   (delete test-db mongo-coll {:age {:$gt 10}})
 
   (update test-db mongo-coll {:age {:$lt 10}} {:$inc {:age 1}})
+
+  (create-index test-db mongo-coll (array-map :a 1 :b -1) nil)
+
+  (get-indexes test-db mongo-coll)
 
   )

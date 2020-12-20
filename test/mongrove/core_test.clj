@@ -127,3 +127,16 @@
       (is (not (nil? colls)))
       (is (map #(instance? MongoCollection %) colls))
       (is (= (set created-colls) (set colls))))))
+
+
+(deftest indexes-test
+  (testing "Create indexes in a collection"
+    (let [client @shared-connection
+          db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
+          coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
+      (mc/create-index db coll (array-map :a 1 :b -1))
+      (let [indexes (mc/get-indexes db coll)
+            our-index (second indexes)]
+        (is (= 2 (count indexes)))
+        (is (= {:a 1 :b -1} (:key our-index)))
+        (is (= "a_1_b_-1" (:name our-index)))))))
