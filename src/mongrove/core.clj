@@ -116,6 +116,8 @@
 
 
 (defn ^SocketSettings socket-settings
+  "Initialize a SocketSettings object from given options map.
+  Available options : :connect-timeout :socket-timeout"
   [^MongoClientSettings$Builder builder
    {:keys [connect-timeout socket-timeout] :as opts}]
   (let [socket-block (reify Block
@@ -130,6 +132,8 @@
 
 
 (defn ^ClusterSettings cluster-settings
+  "Initialize a ClusterSettings object from given options map.
+  Available options : :hosts"
   [^MongoClientSettings$Builder builder
    {:keys [hosts] :as opts}]
   (let [cluster-block (reify Block
@@ -140,6 +144,8 @@
 
 
 (defn ^ConnectionPoolSettings connection-pool-settings
+  "Initialize a ConnectionPoolSettings object from given options map.
+  Available options : :connections-per-host :max-connection-wait-time"
   [^MongoClientSettings$Builder builder
    {:keys [connections-per-host max-connection-wait-time] :as opts}]
   (let [pool-block (reify Block
@@ -153,6 +159,9 @@
 
 
 (defn ^MongoClientSettings client-settings
+  "Initialize a ConnectionPoolSettings object from given options map.
+  Available options : :read-preference :read-concern :write-concern
+  :retry-reads :retry-writes"
   [{:keys [read-preference read-concern write-concern
            retry-reads retry-writes] :as opts}]
   {:pre [(or (nil? read-preference)
@@ -213,21 +222,25 @@
 
 
 (defn ^:public-api ^MongoDatabase get-db
+  "Get the database object given a name."
   [^MongoClient client db-name]
   (.getDatabase client db-name))
 
 
 (defn ^:public-api get-databases
+  "Get all databases available in the given mongo server."
   [^MongoClient client]
   (.listDatabases client))
 
 
 (defn ^:public-api get-database-names
+  "Get all database names available in the given mongo server."
   [^MongoClient client]
   (.listDatabaseNames client))
 
 
 (defn ^:public-api ^MongoCollection get-collection
+  "Get the collection object from given db"
   ([^MongoDatabase db ^String coll write-concern]
    {:pre [(write-concern-map write-concern)]}
    (.withWriteConcern (.getCollection db coll) ^WriteConcern (get write-concern-map write-concern)))
@@ -236,7 +249,7 @@
 
 
 (defn ^:public-api get-collection-names
-  "Returns names of all the collections for the input db"
+  "Returns names of all the collections for the given db"
   [^MongoDatabase db]
   (.listCollectionNames db))
 

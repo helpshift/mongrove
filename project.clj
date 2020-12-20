@@ -13,4 +13,5 @@
   :profiles {:dev {:dependencies [[clj-time "0.15.2"]
                                   [circleci/bond "0.3.1"]
                                   [org.clojure/test.check "1.1.0"]
-                                  [com.gfredericks/test.chuck "0.2.10"]]}})
+                                  [com.gfredericks/test.chuck "0.2.10"]]}}
+  :plugins [[lein-codox "0.10.7"]])
