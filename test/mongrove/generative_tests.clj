@@ -138,289 +138,292 @@
   )
 
 
-(deftest mongo-insert-tests
-  (let [mongo-new (gen-mongo/connect [{:host "localhost"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        mongo-old (gen-mongo/connect [{:host "shiva.local"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        dbname (str "helshift_mongo_test_" (UUID/randomUUID))
-        coll "test-insert"
-        data-count 100]
-    (checking "Insert" data-count
-              [data (s/gen ::person)]
-              (insert-test mongo-new mongo-old dbname coll data)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))))
+(comment
+  (deftest mongo-insert-tests
+    (let [mongo-new (gen-mongo/connect [{:host "localhost"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          mongo-old (gen-mongo/connect [{:host "shiva.local"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          dbname (str "helshift_mongo_test_" (UUID/randomUUID))
+          coll "test-insert"
+          data-count 100]
+      (checking "Insert" data-count
+                [data (s/gen ::person)]
+                (insert-test mongo-new mongo-old dbname coll data)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))))
 
 
-(deftest mongo-query-tests
-  (let [mongo-new (gen-mongo/connect [{:host "localhost"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        mongo-old (gen-mongo/connect [{:host "shiva.local"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        dbname (str "helshift_mongo_test_" (UUID/randomUUID))
-        coll "test-query"
-        run-count 10
-        data-count 100]
-    (checking "Query : { field: { $eq: id-value } }" run-count
-              [query (qgen/gen-query-from-spec :$eq ::oid)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Query : { field: { $gte: int-value } }" run-count
-              [query (qgen/gen-query-from-spec :$gte ::age)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Query : { field: { $gt: int-value } }" run-count
-              [query (qgen/gen-query-from-spec :$gt ::age)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Query : { field: { $lte: date-value } }" run-count
-              [query (qgen/gen-query-from-spec :$lte ::dob)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Query : { field: { $lt: date-value } }" run-count
-              [query (qgen/gen-query-from-spec :$lt ::dob)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Query : { field: { $ne: array-value } }" run-count
-              [query (qgen/gen-query-from-spec :$ne ::cities)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Query : { field {:$size value}}" run-count
-              [query (qgen/gen-query-from-spec :$size ::cities)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))))
-
-
-(deftest mongo-logical-query-tests
-  (let [mongo-new (gen-mongo/connect [{:host "localhost"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        mongo-old (gen-mongo/connect [{:host "shiva.local"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        dbname (str "helshift_mongo_test_" (UUID/randomUUID))
-        coll "test-logical"
-        run-count 10
-        data-count 100]
-    (checking "Query : {:$or [{ field-1 {:$op1 value-1}} { field-2 {:$op2 value-2 }}]}" run-count
-              [query (qgen/gen-logical-query-from-spec :$or [{:op :$gt
-                                                              :spec ::age}
-                                                             {:op :$lt
-                                                              :spec ::dob}])
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Query : {:$and [{ field-1 {:$op1 value-1 }} { field-2 {:$op2 value-2 }}]}" run-count
-              [query (qgen/gen-logical-query-from-spec :$and [{:op :$lt
-                                                               :spec ::age}
-                                                              {:op :$exists
-                                                               :spec ::sat-score}])
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (let [gen-date-range (qgen/gen-logical-query-from-spec :$and
-                                                           [{:op :$gt :spec ::dob}
-                                                            {:op :$lt :spec ::dob}])
-          date-range-spec (s/with-gen (fn [q]
-                                        (ct/after? (get-in q [:dob :$lt])
-                                                   (get-in q [:dob :$gt])))
-                                      (fn []
-                                        gen-date-range))]
-      (checking "Query : { field {:$gt start-date, :$lt end-date}}" run-count
-                [query (s/gen date-range-spec)
+  (deftest mongo-query-tests
+    (let [mongo-new (gen-mongo/connect [{:host "localhost"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          mongo-old (gen-mongo/connect [{:host "shiva.local"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          dbname (str "helshift_mongo_test_" (UUID/randomUUID))
+          coll "test-query"
+          run-count 10
+          data-count 100]
+      (checking "Query : { field: { $eq: id-value } }" run-count
+                [query (qgen/gen-query-from-spec :$eq ::oid)
                  data (gen/vector (s/gen ::person) data-count)]
                 (gen-mongo/bulk-insert-data mongo-new dbname coll data)
                 (gen-mongo/bulk-insert-data mongo-old dbname coll data)
                 (query-test mongo-new mongo-old dbname coll query)
                 (mcore/drop-database (mcore/get-db mongo-new dbname))
-                (mcore/drop-database (mcore/get-db mongo-old dbname))))
-    (checking "Query : { field {:$not {:$exists value}}}" run-count
-              [query (qgen/gen-not-query-from-spec :$exists ::entropy)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Query : { field: { $gte: int-value } }" run-count
+                [query (qgen/gen-query-from-spec :$gte ::age)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Query : { field: { $gt: int-value } }" run-count
+                [query (qgen/gen-query-from-spec :$gt ::age)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Query : { field: { $lte: date-value } }" run-count
+                [query (qgen/gen-query-from-spec :$lte ::dob)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Query : { field: { $lt: date-value } }" run-count
+                [query (qgen/gen-query-from-spec :$lt ::dob)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Query : { field: { $ne: array-value } }" run-count
+                [query (qgen/gen-query-from-spec :$ne ::cities)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Query : { field {:$size value}}" run-count
+                [query (qgen/gen-query-from-spec :$size ::cities)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))))
 
 
-(deftest mongo-in-query-tests
-  (let [mongo-new (gen-mongo/connect [{:host "localhost"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        mongo-old (gen-mongo/connect [{:host "shiva.local"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        dbname (str "helshift_mongo_test_" (UUID/randomUUID))
-        coll "test-in-query"
-        run-count 10
-        data-count 100]
-    (checking "Query : { field: { $in: [value, value...] } }" run-count
-              [query (qgen/gen-query-from-spec :$in ::oid)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Query : { field: { $nin: [value, value...] } }" run-count
-              [query (qgen/gen-query-from-spec :$nin ::cities)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (query-test mongo-new mongo-old dbname coll query)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))))
+  (deftest mongo-logical-query-tests
+    (let [mongo-new (gen-mongo/connect [{:host "localhost"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          mongo-old (gen-mongo/connect [{:host "shiva.local"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          dbname (str "helshift_mongo_test_" (UUID/randomUUID))
+          coll "test-logical"
+          run-count 10
+          data-count 100]
+      (checking "Query : {:$or [{ field-1 {:$op1 value-1}} { field-2 {:$op2 value-2 }}]}" run-count
+                [query (qgen/gen-logical-query-from-spec :$or [{:op :$gt
+                                                                :spec ::age}
+                                                               {:op :$lt
+                                                                :spec ::dob}])
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Query : {:$and [{ field-1 {:$op1 value-1 }} { field-2 {:$op2 value-2 }}]}" run-count
+                [query (qgen/gen-logical-query-from-spec :$and [{:op :$lt
+                                                                 :spec ::age}
+                                                                {:op :$exists
+                                                                 :spec ::sat-score}])
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (let [gen-date-range (qgen/gen-logical-query-from-spec :$and
+                                                             [{:op :$gt :spec ::dob}
+                                                              {:op :$lt :spec ::dob}])
+            date-range-spec (s/with-gen (fn [q]
+                                          (ct/after? (get-in q [:dob :$lt])
+                                                     (get-in q [:dob :$gt])))
+                              (fn []
+                                gen-date-range))]
+        (checking "Query : { field {:$gt start-date, :$lt end-date}}" run-count
+                  [query (s/gen date-range-spec)
+                   data (gen/vector (s/gen ::person) data-count)]
+                  (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                  (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                  (query-test mongo-new mongo-old dbname coll query)
+                  (mcore/drop-database (mcore/get-db mongo-new dbname))
+                  (mcore/drop-database (mcore/get-db mongo-old dbname))))
+      (checking "Query : { field {:$not {:$exists value}}}" run-count
+                [query (qgen/gen-not-query-from-spec :$exists ::entropy)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))))
 
 
-(deftest mongo-update-tests
-  (let [mongo-new (gen-mongo/connect [{:host "localhost"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        mongo-old (gen-mongo/connect [{:host "shiva.local"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        dbname (str "helshift_mongo_test_" (UUID/randomUUID))
-        coll "test-updates"
-        run-count 10
-        data-count 100]
-    (checking "Update : {:$inc : {field : value}} " run-count
-              [query (qgen/gen-query-from-spec :$gt ::age)
-               update-doc (ugen/gen-update-doc-from-spec :$inc ::age)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Update : {:$set : {field1 : value1}} " run-count
-              [query (qgen/gen-query-from-spec :$eq ::oid)
-               update-doc (ugen/gen-update-doc-from-spec :$set ::age)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Update : {:$set : {field1 : value1, field2 : value2...}}" run-count
-              [query (qgen/gen-query-from-spec :$eq ::oid)
-               update-doc (ugen/gen-update-docs-from-spec :$set [{:spec ::age}
-                                                                 {:spec ::cities}
-                                                                 {:spec ::first-name}])
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Update : {:$unset : [field1, field2...]}" run-count
-              [query (qgen/gen-query-from-spec :$eq ::oid)
-               update-doc (ugen/gen-update-docs-from-spec :$unset [{:spec ::cities}
-                                                                   {:spec ::addresses}])
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Update : {:$addToSet : {field1 : [value1, value2...]}} " run-count
-              [query (qgen/gen-query-from-spec :$gt ::age)
-               update-doc (ugen/gen-update-doc-from-spec :$addToSet ::ranks)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))))
+  (deftest mongo-in-query-tests
+    (let [mongo-new (gen-mongo/connect [{:host "localhost"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          mongo-old (gen-mongo/connect [{:host "shiva.local"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          dbname (str "helshift_mongo_test_" (UUID/randomUUID))
+          coll "test-in-query"
+          run-count 10
+          data-count 100]
+      (checking "Query : { field: { $in: [value, value...] } }" run-count
+                [query (qgen/gen-query-from-spec :$in ::oid)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Query : { field: { $nin: [value, value...] } }" run-count
+                [query (qgen/gen-query-from-spec :$nin ::cities)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (query-test mongo-new mongo-old dbname coll query)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))))
 
 
-(deftest mongo-push-pull-tests
-  (let [mongo-new (gen-mongo/connect [{:host "localhost"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        mongo-old (gen-mongo/connect [{:host "shiva.local"
-                                       :port 27017
-                                       :opts {:read-preference :primary}}])
-        dbname (str "helshift_mongo_test_" (UUID/randomUUID))
-        coll "test-updates"
-        run-count 10
-        data-count 100]
-    (checking "Update : {:$pull {:field {:$op value}}}" run-count
-              [query (qgen/gen-query-from-spec :$gt ::age)
-               update-doc (ugen/gen-update-doc-from-spec :$pull
-                                                         ::ranks
-                                                         :condition
-                                                         {:op :$in
-                                                          :spec ::cities})
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Update : {:$pullAll {:field [value1, value2...]}}" run-count
-              [query (qgen/gen-query-from-spec :$gt ::age)
-               update-doc (ugen/gen-update-doc-from-spec :$pullAll ::ranks)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Update : {:$push {:field [value1, value2...]}}" run-count
-              [query (qgen/gen-query-from-spec :$eq ::oid)
-               update-doc (ugen/gen-update-doc-from-spec :$push ::cities)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))
-    (checking "Update : {:$push {:field {:$each [value1, value2...] :$position pos}}}" run-count
-              [query (qgen/gen-query-from-spec :$eq ::oid)
-               update-doc (ugen/gen-update-doc-from-spec :$push ::cities :each? true :position 2)
-               data (gen/vector (s/gen ::person) data-count)]
-              (gen-mongo/bulk-insert-data mongo-new dbname coll data)
-              (gen-mongo/bulk-insert-data mongo-old dbname coll data)
-              (update-test mongo-new mongo-old dbname coll query update-doc)
-              (mcore/drop-database (mcore/get-db mongo-new dbname))
-              (mcore/drop-database (mcore/get-db mongo-old dbname)))))
+  (deftest mongo-update-tests
+    (let [mongo-new (gen-mongo/connect [{:host "localhost"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          mongo-old (gen-mongo/connect [{:host "shiva.local"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          dbname (str "helshift_mongo_test_" (UUID/randomUUID))
+          coll "test-updates"
+          run-count 10
+          data-count 100]
+      (checking "Update : {:$inc : {field : value}} " run-count
+                [query (qgen/gen-query-from-spec :$gt ::age)
+                 update-doc (ugen/gen-update-doc-from-spec :$inc ::age)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Update : {:$set : {field1 : value1}} " run-count
+                [query (qgen/gen-query-from-spec :$eq ::oid)
+                 update-doc (ugen/gen-update-doc-from-spec :$set ::age)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Update : {:$set : {field1 : value1, field2 : value2...}}" run-count
+                [query (qgen/gen-query-from-spec :$eq ::oid)
+                 update-doc (ugen/gen-update-docs-from-spec :$set [{:spec ::age}
+                                                                   {:spec ::cities}
+                                                                   {:spec ::first-name}])
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Update : {:$unset : [field1, field2...]}" run-count
+                [query (qgen/gen-query-from-spec :$eq ::oid)
+                 update-doc (ugen/gen-update-docs-from-spec :$unset [{:spec ::cities}
+                                                                     {:spec ::addresses}])
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Update : {:$addToSet : {field1 : [value1, value2...]}} " run-count
+                [query (qgen/gen-query-from-spec :$gt ::age)
+                 update-doc (ugen/gen-update-doc-from-spec :$addToSet ::ranks)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))))
+
+
+  (deftest mongo-push-pull-tests
+    (let [mongo-new (gen-mongo/connect [{:host "localhost"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          mongo-old (gen-mongo/connect [{:host "shiva.local"
+                                         :port 27017
+                                         :opts {:read-preference :primary}}])
+          dbname (str "helshift_mongo_test_" (UUID/randomUUID))
+          coll "test-updates"
+          run-count 10
+          data-count 100]
+      (checking "Update : {:$pull {:field {:$op value}}}" run-count
+                [query (qgen/gen-query-from-spec :$gt ::age)
+                 update-doc (ugen/gen-update-doc-from-spec :$pull
+                                                           ::ranks
+                                                           :condition
+                                                           {:op :$in
+                                                            :spec ::cities})
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Update : {:$pullAll {:field [value1, value2...]}}" run-count
+                [query (qgen/gen-query-from-spec :$gt ::age)
+                 update-doc (ugen/gen-update-doc-from-spec :$pullAll ::ranks)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Update : {:$push {:field [value1, value2...]}}" run-count
+                [query (qgen/gen-query-from-spec :$eq ::oid)
+                 update-doc (ugen/gen-update-doc-from-spec :$push ::cities)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))
+      (checking "Update : {:$push {:field {:$each [value1, value2...] :$position pos}}}" run-count
+                [query (qgen/gen-query-from-spec :$eq ::oid)
+                 update-doc (ugen/gen-update-doc-from-spec :$push ::cities :each? true :position 2)
+                 data (gen/vector (s/gen ::person) data-count)]
+                (gen-mongo/bulk-insert-data mongo-new dbname coll data)
+                (gen-mongo/bulk-insert-data mongo-old dbname coll data)
+                (update-test mongo-new mongo-old dbname coll query update-doc)
+                (mcore/drop-database (mcore/get-db mongo-new dbname))
+                (mcore/drop-database (mcore/get-db mongo-old dbname)))))
+
+  )
