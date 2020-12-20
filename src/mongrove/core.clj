@@ -369,12 +369,12 @@
   {:pre [(sequential? includes) (sequential? excludes)]
    :post [(instance? Bson %)]}
   (let [include-names (map name includes)
-        exc-set (set (map name excludes))]
+        exclude-names (map name excludes)]
     ;; We cannot mix and match including and excluding fields, mongo does not
     ;; allow this. If only is specified, it will take precedence over exclude
-    (Projections/fields [(Projections/include include-names)
-                         (Projections/exclude (vec (cset/difference exc-set
-                                                                    (set include-names))))])))
+    (if (seq include-names)
+      (Projections/fields [(Projections/include include-names)])
+      (Projections/fields [(Projections/exclude exclude-names)]))))
 
 
 ;; API usage
