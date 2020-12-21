@@ -421,7 +421,7 @@
 ;; API usage
 
 (comment
-  (def client (connect :replica-set [{:host "shiva.local"
+  (def client (connect :replica-set [{:host "localhost"
                                       :port 27017
                                       :opts {:read-preference :primary}}]))
   (def test-db (get-db client "test_driver"))
@@ -436,7 +436,7 @@
 
   (doseq [i (range 10)]
     (insert test-db mongo-coll {:id i
-                                :name (str "rhishikesh-user-" i)
+                                :name (str "user-" i)
                                 :age (rand-int 20)
                                 :dob (java.util.Date.)} :multi? false))
 

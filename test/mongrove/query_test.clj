@@ -12,7 +12,7 @@
   "This will run once before tests are executed
   and will initialise a connection into the shared-connection atom"
   [tests]
-  (let [c (mc/connect :replica-set [{:host "shiva.local"
+  (let [c (mc/connect :replica-set [{:host "localhost"
                                      :port 27017}])]
     (reset! shared-connection c)
     (tests)))
