@@ -2,6 +2,10 @@
 
 A Clojure library designed to interact with MongoDB.
 
+## Status
+
+[![Helpshift](https://circleci.com/gh/helpshift/mongrove.svg?style=shield)](https://circleci.com/gh/helpshift/mongrove)
+
 ## Usage
 
 ```clojure
