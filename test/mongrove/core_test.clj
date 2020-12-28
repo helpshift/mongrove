@@ -17,7 +17,7 @@
   "This will run once before tests are executed
   and will initialise a connection into the shared-connection atom"
   [tests]
-  (let [c (mc/connect :replica-set [{:host "shiva.local"
+  (let [c (mc/connect :replica-set [{:host "localhost"
                                      :port 27017}])]
     (reset! shared-connection c)
     (tests)))
@@ -50,12 +50,12 @@
 
 (deftest connect-test
   (testing "Connect to a replica set with default opts"
-    (let [client (mc/connect :replica-set [{:host "shiva.local"
+    (let [client (mc/connect :replica-set [{:host "localhost"
                                             :port 27017}])]
       (is (not (nil? client)))
       (is (instance? MongoClient client))))
   (testing "Connect to a replica set with custom opts"
-    (let [client (mc/connect :replica-set [{:host "shiva.local"
+    (let [client (mc/connect :replica-set [{:host "localhost"
                                             :port 27017
                                             :opts {:read-preference :primary
                                                    :read-concern :default
@@ -69,7 +69,7 @@
       (is (not (nil? client)))
       (is (instance? MongoClient client))))
   (testing "Connect to a direct node"
-    (let [client (mc/connect :direct {:host "shiva.local"
+    (let [client (mc/connect :direct {:host "localhost"
                                       :port 27017
                                       :opts {:read-preference :primary}})]
       (is (not (nil? client)))
