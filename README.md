@@ -48,6 +48,13 @@ lein codox
 ```
 from the project folder and the API documentation will be generated in the `target/doc` folder.
 
+## Tests
+
+The `test/mongrove` folder contains unit tests for mongrove APIs. For running these tests, please make sure you have a running mongo cluster on `localhost:27017`
+If you want to test against a different mongo cluster, please change the options in the test namespaces' `init-connection-fixture` function.
+
+The `test/mongrove/generative` folder contains generative tests for Mongo query operators. These tests are primarily aimed comparing query results across 2 different Mongo clusters, something you might need to do when testing for an upgrade !
+
 ## Next steps
 
 1. Add support for ACID transactions

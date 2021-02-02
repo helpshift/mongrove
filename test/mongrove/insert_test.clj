@@ -64,7 +64,7 @@
                :country (.toString (java.util.UUID/randomUUID))}
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll doc :multi? false :write-concern :w1)
+      (mc/insert db coll doc :multi? false :write-concern :majority)
       (let [db-doc (mc/query db coll {})]
         (is (= 1 (count db-doc)))
         (is (= doc (first db-doc))))))
@@ -77,7 +77,7 @@
                   :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (let [db-docs (mc/query db coll {})]
         (is (= 10 (count db-docs)))
         (is (= docs db-docs))))))
@@ -93,7 +93,7 @@
                   :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (mc/delete db coll {})
       (let [count-db-docs (mc/count-docs db coll {})]
         (is (= 0 count-db-docs)))))
@@ -107,7 +107,7 @@
           filtered-docs (filter #(>= 100 (:age %)) docs)
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (mc/delete db coll {:age {:$gt 100}})
       (let [queried-docs (mc/query db coll {:age {:$lte 100}})]
         (is (= filtered-docs queried-docs))))))

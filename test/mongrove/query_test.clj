@@ -53,7 +53,7 @@
                   :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (let [db-doc (mc/fetch-one db coll {})]
         (is ((set docs) db-doc)))))
   (testing "Get a particular document"
@@ -65,7 +65,7 @@
                   :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (mc/insert db coll {:name "harry"
                           :age 100
                           :city "knowhere"
@@ -85,7 +85,7 @@
                   :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (mc/insert db coll {:name "harry"
                           :age 100
                           :city "knowhere"
@@ -110,7 +110,7 @@
                   :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (let [db-docs (mc/query db coll {})]
         (is (= 10 (count db-docs)))
         (is (= docs db-docs)))))
@@ -128,8 +128,8 @@
                         :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
-      (mc/insert db coll query-docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
+      (mc/insert db coll query-docs :multi? true :write-concern :majority)
       (mc/insert db coll {:name "harry"
                           :age 100
                           :city "knowhere"
@@ -151,7 +151,7 @@
                   :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (mc/insert db coll {:name "harry"
                           :age 100
                           :city "knowhere"
@@ -184,7 +184,7 @@
           r-sorted-docs (reverse sorted-docs)
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (let [db-docs (mc/query db coll {} :sort-by {:age 1})
             r-db-docs (mc/query db coll {} :sort-by {:age -1})]
         (is (= db-docs sorted-docs))
@@ -203,7 +203,7 @@
                             (filter #(< 100 (:age %)) docs))
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (let [queried-docs (mc/query db coll {:age {:$gt 100}} :sort-by {:age 1} :limit 2)
             one-doc (mc/query db coll {:age {:$gt 100}} :sort-by {:age 1} :one? true :limit 2)
             skip-docs (mc/query db coll {:age {:$gt 100}} :sort-by {:age 1} :skip 2)]
@@ -223,7 +223,7 @@
                   :country (.toString (java.util.UUID/randomUUID))})
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (let [count-db-docs (mc/count-docs db coll {})]
         (is (= 10 count-db-docs)))))
   (testing "Count only some documents"
@@ -236,6 +236,6 @@
           filtered-docs (filter #(< 100 (:age %)) docs)
           db (mc/get-db client (str "test-db-" (.toString (java.util.UUID/randomUUID))))
           coll (str "test-coll-" (.toString (java.util.UUID/randomUUID)))]
-      (mc/insert db coll docs :multi? true :write-concern :w1)
+      (mc/insert db coll docs :multi? true :write-concern :majority)
       (let [queried-docs-count (mc/count-docs db coll {:age {:$gt 100}})]
         (is (= (count filtered-docs) queried-docs-count))))))
