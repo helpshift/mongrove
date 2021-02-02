@@ -37,6 +37,23 @@ A Clojure library designed to interact with MongoDB.
   (update test-db mongo-coll {:age {:$lt 10}} {:$inc {:age 1}})
 ```
 
+### API
+
+To view full API you can generate documentation using [codox](https://github.com/weavejester/codox)
+
+Run
+
+```shell
+lein codox
+```
+from the project folder and the API documentation will be generated in the `target/doc` folder.
+
+## Next steps
+
+1. Add support for ACID transactions
+2. Add benchmarking results comparing against [Monger](https://github.com/michaelklishin/monger)
+3. Add support for sharded Mongo clusters
+
 ## License
 
 Copyright © Helpshift Inc. 2020
