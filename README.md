@@ -1,5 +1,7 @@
 # mongrove
 
+<img src="helpshift-logo.png" alt="drawing" width="200" height="200"/>
+
 A Clojure library designed to interact with MongoDB.
 
 ## Status
