@@ -14,12 +14,10 @@
   [tests]
   (let [c (mc/connect :replica-set [{:host "localhost"
                                      :port 27017}
-                                    ;; Uncomment when running against a cluster
-                                    ;; {:host "localhost"
-                                    ;;  :port 27018}
-                                    ;; {:host "localhost"
-                                    ;;  :port 27019}
-                                    ])]
+                                    {:host "localhost"
+                                     :port 27018}
+                                    {:host "localhost"
+                                     :port 27019}])]
     (reset! shared-connection c)
     (tests)))
 
@@ -48,8 +46,8 @@
 
 (use-fixtures :once (join-fixtures [init-connection-fixture each-fixture]))
 
-
-(deftest transactions-test
+;; Uncomment when running against a cluster
+#_(deftest transactions-test
   (testing "Push multiple values to limited number of objects via overlapping threads"
     (let [client @shared-connection
           counters (take 10 (repeat (atom 0)))
@@ -97,7 +95,7 @@
 
 
 ;; This test should ideally fail !
-(deftest no-transactions-test
+#_(deftest no-transactions-test
   (testing "Push multiple values to limited number of objects via overlapping threads"
     (let [client @shared-connection
           counters (take 10 (repeat (atom 0)))
@@ -132,7 +130,7 @@
                (map #(set (:vals %)) bcoll)))))))
 
 
-(deftest transactions-for-atomicity
+#_(deftest transactions-for-atomicity
   (testing "Mongo operations in the same transaction either succeed or fail together"
     (let [client @shared-connection
           test-db (mc/get-db client (str "test-db-"
