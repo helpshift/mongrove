@@ -16,5 +16,6 @@
                                   [com.gfredericks/test.chuck "0.2.10"]]}}
   :plugins [[lein-codox "0.10.7"]
             [lein-cloverage "1.1.2"]]
-  :test-selectors {:default (complement :cluster-tests)
+  :test-selectors {:default [#(not (#{"mongrove.transactions-test"} %)) ;; ns annotations
+                             (complement :cluster-tests)] ;; test-annotations
                    :cluster-tests :cluster-tests})

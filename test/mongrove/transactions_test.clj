@@ -117,10 +117,8 @@
                       (mc/update test-db "b" {:id j} {:$push {:vals val}})))
                   (Thread/sleep 100))]
           (swap! futures conj f)))
-      (println "Derefing futures")
       (doseq [i (range num-threads)]
         (deref (nth @futures i)))
-      (println "Done derefing")
       (let [acoll (mc/query test-db "a" {} :limit 0)
             bcoll (mc/query test-db "b" {} :limit 0)]
         (doseq [j (range 10)]
