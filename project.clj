@@ -15,4 +15,6 @@
                                   [org.clojure/test.check "1.1.0"]
                                   [com.gfredericks/test.chuck "0.2.10"]]}}
   :plugins [[lein-codox "0.10.7"]
-            [lein-cloverage "1.1.2"]])
+            [lein-cloverage "1.1.2"]]
+  :test-selectors {:default (complement :cluster-tests)
+                   :cluster-tests :cluster-tests})

@@ -46,8 +46,8 @@
 
 (use-fixtures :once (join-fixtures [init-connection-fixture each-fixture]))
 
-;; Uncomment when running against a cluster
-#_(deftest transactions-test
+
+(deftest ^:cluster-tests transactions-test
   (testing "Push multiple values to limited number of objects via overlapping threads"
     (let [client @shared-connection
           counters (take 10 (repeat (atom 0)))
@@ -95,7 +95,7 @@
 
 
 ;; This test should ideally fail !
-#_(deftest no-transactions-test
+(deftest ^:cluster-tests no-transactions-test
   (testing "Push multiple values to limited number of objects via overlapping threads"
     (let [client @shared-connection
           counters (take 10 (repeat (atom 0)))
@@ -130,7 +130,7 @@
                (map #(set (:vals %)) bcoll)))))))
 
 
-#_(deftest transactions-for-atomicity
+(deftest ^:cluster-tests transactions-for-atomicity
   (testing "Mongo operations in the same transaction either succeed or fail together"
     (let [client @shared-connection
           test-db (mc/get-db client (str "test-db-"
