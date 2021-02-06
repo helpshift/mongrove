@@ -35,6 +35,29 @@ A Clojure library designed to interact with MongoDB.
   (delete test-db mongo-coll {:age {:$gt 10}})
 
   (update test-db mongo-coll {:age {:$lt 10}} {:$inc {:age 1}})
+
+;; For using multi-document transactions,
+
+(try
+    (delete test-db "a" {})
+    (delete test-db "b" {})
+    ;; Creating new collections is not supported
+    ;; in Mongo 4.0 so ensure that there exist collections
+    ;; a and b
+    (insert test-db "a" {:id 1})
+    (insert test-db "b" {:id 1})
+
+    (run-in-transaction client
+                        (fn [session]
+                          ;; DO NOT ADD try-catch here. If you do this, exceptions
+                          ;; will not percolate to the transaction and it will get committed
+                          ;; successfully
+                          (insert test-db "a" {:a 42} :session session)
+                          ;; This will throw an exception
+                          (insert test-db "b" {:b (.toString nil)} :session session))
+                        {:transaction-opts {:retry-on-errors true}})
+    (catch Exception e
+      (println "Data in collection a " (query test-db "a" {}))))
 ```
 
 ### API

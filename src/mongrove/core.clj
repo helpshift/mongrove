@@ -7,13 +7,18 @@
   (:import
     (com.mongodb
       Block
+      ClientSessionOptions
+      ClientSessionOptions$Builder
       MongoClientSettings
       MongoClientSettings$Builder
       ReadConcern
       ReadPreference
       ServerAddress
+      TransactionOptions
+      TransactionOptions$Builder
       WriteConcern)
     (com.mongodb.client
+      ClientSession
       FindIterable
       MongoClient
       MongoClients
@@ -229,14 +234,23 @@
 
 (defn ^:public-api get-databases
   "Get all databases available in the given mongo server."
-  [^MongoClient client]
-  (conversion/from-bson-document (seq (.listDatabases client)) true))
+  ([^MongoClient client]
+   (get-databases client nil))
+  ([^MongoClient client ^ClientSession session]
+   (conversion/from-bson-document (seq (if session
+                                         (.listDatabases client session)
+                                         (.listDatabases client)))
+                                  true)))
 
 
 (defn ^:public-api get-database-names
   "Get all database names available in the given mongo server."
-  [^MongoClient client]
-  (seq (.listDatabaseNames client)))
+  ([^MongoClient client]
+   (get-database-names client nil))
+  ([^MongoClient client ^ClientSession session]
+   (if session
+     (seq (.listDatabaseNames client session))
+     (seq (.listDatabaseNames client)))))
 
 
 (defn ^:public-api ^MongoCollection get-collection
@@ -250,47 +264,67 @@
 
 (defn ^:public-api get-collection-names
   "Returns names of all the collections for the given db"
-  [^MongoDatabase db]
-  (seq (.listCollectionNames db)))
+  ([^MongoDatabase db]
+   (get-collection-names db nil))
+  ([^MongoDatabase db ^ClientSession session]
+   (seq (if session
+          (.listCollectionNames db session)
+          (.listCollectionNames db)))))
 
 
 (defn ^:public-api drop-collection
   "Drop the given collection."
-  [^MongoDatabase db ^String coll]
-  (let [collection (get-collection db coll)]
-    (.drop collection)))
+  ([^MongoDatabase db ^String coll]
+   (drop-collection db nil coll))
+  ([^MongoDatabase db ^ClientSession session ^String coll]
+   (let [collection (get-collection db coll)]
+     (if session
+       (.drop collection session)
+       (.drop collection)))))
 
 
 (defn ^:public-api drop-database
   "Drop the given database."
-  [^MongoDatabase db]
-  (.drop db))
+  ([^MongoDatabase db]
+   (drop-database db nil))
+  ([^MongoDatabase db ^ClientSession session]
+   (if session
+     (.drop db session)
+     (.drop db))))
 
 
 (defn ^:public-api insert
   "Insert a document into the database. If inserting in bulk, provide a vector of
    maps and set multi? as true."
-  [^MongoDatabase db ^String coll docs & {multi? :multi? write-concern :write-concern
-                                          :or {multi? false write-concern :majority}}]
+  [^MongoDatabase db ^String coll docs
+   & {multi? :multi? write-concern :write-concern session :session
+      :or {multi? false write-concern :majority}}]
   {:pre [(or (nil? write-concern)
              (write-concern-map write-concern))]}
   (let [collection (get-collection db coll write-concern)
         bson-docs (conversion/to-bson-document docs)]
     (if multi?
-      (.insertMany collection bson-docs)
-      (.insertOne collection bson-docs))))
+      (if session
+        (.insertMany collection session bson-docs)
+        (.insertMany collection bson-docs))
+      (if session
+        (.insertOne collection session bson-docs)
+        (.insertOne collection bson-docs)))))
 
 
 (defn ^:public-api fetch-one
   "Fetch a single document depending on query.
    Optionally return (or exclude) only a subset of the fields."
-  [^MongoDatabase db ^String coll query & {:keys [only exclude]
-                         :or {only [] exclude []}}]
-  (let [collection (get-collection db coll)
-        bson-query (conversion/to-bson-document query)
-        iterator (doto ^FindIterable (.find ^MongoCollection collection bson-query)
-                   (.projection (->projections only exclude)))]
-    (clean (conversion/from-bson-document (.first ^FindIterable iterator) true))))
+  ([^MongoDatabase db ^String coll query & {:keys [only exclude session]
+                                            :or {only [] exclude []}}]
+   (let [collection (get-collection db coll)
+         bson-query (conversion/to-bson-document query)
+         iterator (doto ^FindIterable
+                      (if session
+                        (.find ^MongoCollection collection session bson-query)
+                        (.find ^MongoCollection collection bson-query))
+                    (.projection (->projections only exclude)))]
+     (clean (conversion/from-bson-document (.first ^FindIterable iterator) true)))))
 
 
 (defn ^:public-api query
@@ -301,14 +335,17 @@
   if mongod server goes down at the same time, then cursor is lost and query
   will fail with the Cursor exception"
   [^MongoDatabase db ^String coll query & {:keys [sort-by limit only exclude skip one?
-                                batch-size]
-                         :or {skip 0 limit 10 one? false only []
-                              exclude [] batch-size 10000}}]
+                                                  batch-size session]
+                                           :or {skip 0 limit 10 one? false only []
+                                                exclude [] batch-size 10000}}]
   (let [collection (get-collection db coll)
         bson-query (conversion/to-bson-document query)
         sort (when sort-by
-                      (reduce-kv #(assoc %1 %2 (int %3)) {} sort-by))
-        iterator (doto ^FindIterable (.find ^MongoCollection collection bson-query)
+               (reduce-kv #(assoc %1 %2 (int %3)) {} sort-by))
+        iterator (doto ^FindIterable
+                     (if session
+                       (.find ^MongoCollection collection session bson-query)
+                       (.find ^MongoCollection collection bson-query))
                    (.projection (->projections only exclude))
                    (.sort (conversion/to-bson-document sort))
                    (.limit (if one? 1 limit))
@@ -321,29 +358,36 @@
 (defn ^:public-api count-docs
   "Count documents in a collection.
    Optionally take a query."
-  [^MongoDatabase db ^String coll query]
-  (let [collection ^MongoCollection (get-collection db coll)
-        bson-query (conversion/to-bson-document query)]
-    (.countDocuments collection bson-query)))
+  ([^MongoDatabase db ^String coll query]
+   (count-docs db nil coll query))
+  ([^MongoDatabase db ^ClientSession session ^String coll query]
+   (let [collection ^MongoCollection (get-collection db coll)
+         bson-query (conversion/to-bson-document query)]
+     (if session
+       (.countDocuments collection session bson-query)
+       (.countDocuments collection bson-query)))))
 
 
 (defn ^:public-api delete
   "Delete a document from the collection that matches `query`.
   wc is the write-concern which should be a key from write-concern-map and is optional.
   Else the default write-concern is used."
-  [^MongoDatabase db ^String coll query & {write-concern :write-concern
+  [^MongoDatabase db ^String coll query & {write-concern :write-concern session :session
                                            :or {write-concern :majority}}]
   {:pre [(or (nil? write-concern)
              (write-concern-map write-concern))]}
   (let [collection (get-collection db coll write-concern)
         bson-query (conversion/to-bson-document query)]
-    (.deleteMany collection bson-query)))
+    (if session
+      (.deleteMany collection session bson-query)
+      (.deleteMany collection bson-query))))
 
 
 (defn ^:public-api update
   "Update one or more documents with given document depending on query.
    Optionally upsert."
   [^MongoDatabase db ^String coll query doc & {upsert? :upsert? multi? :multi? write-concern :write-concern
+                                               session :session
                                                :or {upsert? false multi? false write-concern :majority}}]
   {:pre [(or (nil? write-concern)
              (write-concern-map write-concern))]}
@@ -352,8 +396,12 @@
         bson-update (conversion/to-bson-document doc)
         update-options (.upsert (UpdateOptions.) upsert?)]
     (if multi?
-      (.updateMany collection bson-query bson-update update-options)
-      (.updateOne collection bson-query bson-update update-options))))
+      (if session
+        (.updateMany collection session bson-query bson-update update-options)
+        (.updateMany collection bson-query bson-update update-options))
+      (if session
+        (.updateOne collection session bson-query bson-update update-options)
+        (.updateOne collection bson-query bson-update update-options)))))
 
 
 (defn ^:public-api create-index
@@ -365,8 +413,10 @@
    always use an array map like : (array-map :field 1 :another-field -1)
    Supports option :unique (boolean) => creates a unique index"
   ([^MongoDatabase db ^String coll index-spec]
-   (create-index db coll index-spec nil))
-  ([^MongoDatabase db ^String coll index-spec options]
+   (create-index db nil coll index-spec nil))
+  ([^MongoDatabase db ^ClientSession session ^String coll index-spec]
+   (create-index db session coll index-spec nil))
+  ([^MongoDatabase db ^ClientSession session ^String coll index-spec options]
    (let [collection (get-collection db coll)
          allowed-options (select-keys options [:unique])
          indexes (group-by second index-spec)
@@ -375,21 +425,35 @@
          index ^Bson (Indexes/compoundIndex [(Indexes/ascending ascending)
                                              (Indexes/descending descending)])]
      (if (seq allowed-options)
-       (.createIndex collection
-                     index
-                     (.unique (IndexOptions.)
-                              (:unique allowed-options)))
-       (.createIndex collection
-                     index)))))
+       (if session
+         (.createIndex collection
+                       session
+                       index
+                       (.unique (IndexOptions.)
+                                (:unique allowed-options)))
+         (.createIndex collection
+                       index
+                       (.unique (IndexOptions.)
+                                (:unique allowed-options))))
+       (if session
+         (.createIndex collection
+                       session
+                       index)
+         (.createIndex collection
+                       index))))))
 
 
 (defn ^:public-api get-indexes
   "Get indexes for a given collection"
-  [^MongoDatabase db ^String coll]
-  (let [collection (get-collection db coll)
-        iterator (.listIndexes collection)
-        cursor (.cursor iterator)]
-    (clean (m-cursor-iterate cursor true))))
+  ([^MongoDatabase db ^String coll]
+   (get-indexes db nil coll))
+  ([^MongoDatabase db ^ClientSession session ^String coll]
+   (let [collection (get-collection db coll)
+         iterator (if session
+                    (.listIndexes collection session)
+                    (.listIndexes collection))
+         cursor (.cursor iterator)]
+     (clean (m-cursor-iterate cursor true)))))
 
 ;;;
 ;;; Util
@@ -450,4 +514,166 @@
 
   (get-indexes test-db mongo-coll)
 
+  )
+
+
+;; Transactions
+
+(def ^{:private true :doc "Default Mongo Transactions Opts"}
+  default-transaction-opts
+  {:read-preference (:primary read-preference-map)
+   :read-concern (:snapshot read-concern-map)
+   :write-concern (:majority write-concern-map)
+   :retry-on-errors false})
+
+
+(def ^{:private true :doc "Default Mongo ClientSession Opts"}
+  default-client-session-opts
+  {:causally-consistent true
+   :transaction-opts default-transaction-opts})
+
+
+(defn ^TransactionOptions transaction-options
+  "Default Transaction options."
+  [{:keys [read-preference
+           read-concern
+           write-concern] :as opts}]
+  (let [opts (merge default-transaction-opts opts)]
+    (if (= (:read-preference opts) :secondary)
+      (.build ^TransactionOptions$Builder
+       (doto ^TransactionOptions$Builder (TransactionOptions/builder)
+         (.readConcern (:read-concern opts))
+         (.writeConcern (:write-concern opts))
+         (.readPreference (com.mongodb.ReadPreference/secondary))))
+      (.build ^TransactionOptions$Builder
+       (doto ^TransactionOptions$Builder (TransactionOptions/builder)
+         (.readConcern (:read-concern opts))
+         (.writeConcern (:write-concern opts))
+         (.readPreference (com.mongodb.ReadPreference/primary)))))))
+
+
+(defn ^ClientSessionOptions client-session-options
+  "Default MongoDB client session options."
+  ;; We need transaction options here which should come from outside when
+  ;; running the transaction
+  [{:keys [causally-consistent
+           transaction-opts] :as opts}]
+  (let [opts (merge default-client-session-opts opts)]
+    (.build ^ClientSessionOptions$Builder
+     (doto ^ClientSessionOptions$Builder (ClientSessionOptions/builder)
+       (.causallyConsistent (:causally-consistent opts))
+       (.defaultTransactionOptions (transaction-options (:transaction-opts opts)))))))
+
+
+(defn- retryable-mongo-commit-ex?
+  "Commits will be retried for the following conditions.
+   additionally, transaction commit operations can also throw errors which
+   can help retry only the commit operation. Mongo also handles retries this way.
+   If the commit operation throws an error, it is retried 1 more time.
+   If the the errorLabels array field contains UnknownTransactionCommitResult -> retry commit"
+  [ex]
+  (and (instance? com.mongodb.MongoException ex)
+       (.hasErrorLabel ^com.mongodb.MongoException ex
+                       com.mongodb.MongoException/UNKNOWN_TRANSACTION_COMMIT_RESULT_LABEL)))
+
+
+(defn- retryable-mongo-transaction-ex?
+  "Commits will be retried for the following conditions
+   errorLabels array field contains TransientTransactionError -> retry"
+  [ex]
+  (and (instance? com.mongodb.MongoException ex)
+       (.hasErrorLabel ^com.mongodb.MongoException ex
+                       com.mongodb.MongoException/TRANSIENT_TRANSACTION_ERROR_LABEL)))
+
+
+(defn- start-transaction
+  [^MongoClient client transaction-specs]
+  (let [client-opts (client-session-options {:transaction-opts transaction-specs})
+        session (.startSession client client-opts)]
+    (.startTransaction session)
+    session))
+
+
+(defn- commit-transaction
+  [^com.mongodb.client.ClientSession session]
+  (.commitTransaction session))
+
+
+(defn- exec-transaction
+    [^MongoClient client body-fn
+     {:keys [transaction-specs]}]
+    (let [transaction-specs (merge default-transaction-opts
+                                   transaction-specs)
+          session (start-transaction client transaction-specs)]
+      (try
+        ;; Create a ClientSession object from
+        ;; com.mongodb.client.MongoClient.startSession(ClientSessionOptions)
+        ;; Create client session options from ClientSessionOptions.Builder
+        (let [result (eval (body-fn session))]
+          (commit-transaction session)
+          result)
+        (catch Exception ex
+          (throw ex))
+        (finally
+          (.close ^com.mongodb.client.ClientSession session)))))
+
+
+(let [retryable-errors #{"TransientTransactionError"}]
+  (defn ^:public-api run-in-transaction
+    "Execute the given code in a MongoDB transaction.
+     `client` : The MongoClient connection object
+     `body-fn` : The body-fn should be a function which takes 1 argument,
+      a ClientSession object. This session object needs to be
+      passed in to all the mongrove APIs which take a session arg.
+     `options`: Currently supported keys are :
+       `transaction-opts` {:read-preference :read-concern :write-concern :retry-on-errors}
+        If the transaction fails with a retryable error label, and retry-on-errors is true,
+        mongrove will keep retrying the transaction.
+        For other options, refer to the MongoDB documentation.
+        For default values chosen, refer to Jepsen's recommendations
+        here : http://jepsen.io/analyses/mongodb-4.2.6"
+    [^MongoClient client body-fn
+     {:keys [transaction-opts] :as options}]
+    (let [exp (try
+                (apply exec-transaction client body-fn options)
+                (catch com.mongodb.MongoCommandException cmex
+                  (if (and (:retry-on-errors transaction-opts)
+                           (retryable-errors (.getErrorLabels cmex)))
+                    :retry
+                    cmex)))]
+      (if (= exp :retry)
+        (recur client body-fn options)
+        exp))))
+
+
+(comment
+  (def client (connect :replica-set [{:host "localhost"
+                                      :port 27017
+                                      :opts {:read-preference :primary}}
+                                     {:host "localhost"
+                                      :port 27018}
+                                     {:host "localhost"
+                                      :port 27019}]))
+  (def test-db (get-db client "test_transactions"))
+
+  (try
+    (delete test-db "a" {})
+    (delete test-db "b" {})
+    ;; Creating new collections is not supported
+    ;; in Mongo 4.0 so ensure that there exist collections
+    ;; a and b
+    (insert test-db "a" {:id 1})
+    (insert test-db "b" {:id 1})
+
+    (run-in-transaction client
+                        (fn [session]
+                          ;; DO NOT ADD try-catch here. If you do this, exceptions
+                          ;; will not percolate to the transaction and it will get committed
+                          ;; successfully
+                          (insert test-db "a" {:a 42} :session session)
+                          ;; This will throw an exception
+                          (insert test-db "b" {:b (.toString nil)} :session session))
+                        {:transaction-opts {:retry-on-errors true}})
+    (catch Exception e
+      (println "Data in collection a " (query test-db "a" {}))))
   )

@@ -146,7 +146,7 @@
       (doseq [dc drop-colls]
         (mc/drop-collection db dc))
       (let [remaining-colls (mc/get-collection-names db)]
-        (is (= remaining-colls (drop 5 colls)))))))
+        (is (= (set remaining-colls) (set (drop 5 colls))))))))
 
 
 (deftest indexes-test
