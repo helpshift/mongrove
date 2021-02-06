@@ -14,10 +14,12 @@
   [tests]
   (let [c (mc/connect :replica-set [{:host "localhost"
                                      :port 27017}
-                                    {:host "localhost"
-                                     :port 27018}
-                                    {:host "localhost"
-                                     :port 27019}])]
+                                    ;; Uncomment when running against a cluster
+                                    ;; {:host "localhost"
+                                    ;;  :port 27018}
+                                    ;; {:host "localhost"
+                                    ;;  :port 27019}
+                                    ])]
     (reset! shared-connection c)
     (tests)))
 
