@@ -442,6 +442,17 @@
                        index))))))
 
 
+(defn ^:public-api drop-index
+  "Drop index for a given collection"
+  ([^MongoDatabase db ^String coll ^String index-name]
+   (drop-index db nil coll index-name))
+  ([^MongoDatabase db ^ClientSession session ^String coll ^String index-name]
+   (let [collection ^MongoCollection (get-collection db coll)]
+     (if session
+       (.dropIndex collection session index-name)
+       (.dropIndex collection index-name)))))
+
+
 (defn ^:public-api get-indexes
   "Get indexes for a given collection"
   ([^MongoDatabase db ^String coll]
@@ -523,9 +534,15 @@
 
   (delete test-db mongo-coll {:age {:$gt 10}})
 
-  (update test-db mongo-coll {:age {:$lt 10}} {:$inc {:age 1}})
+  (update test-db mongo-coll {:age {:$gt 10}} {:$inc {:age 1}})
 
-  (create-index test-db mongo-coll (array-map :a 1 :b -1) nil)
+  (create-index test-db mongo-coll (array-map :a 1 :b -1))
+
+  (drop-index test-db mongo-coll "a_1_b_-1")
+
+  (drop-collection test-db mongo-coll)
+
+  (drop-database test-db)
 
   (get-indexes test-db mongo-coll)
 
