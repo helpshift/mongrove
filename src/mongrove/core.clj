@@ -1,9 +1,6 @@
 (ns ^{:author "Rhishikesh Joshi <rhishikesh@helpshift.com>", :doc "A clojure wrapper over the official MongoDB java driver"} mongrove.core
   (:refer-clojure :exclude [update])
   (:require
-    [cheshire.core :as json]
-    [clojure.set :as cset]
-    [clojure.string :as string]
     [clojure.tools.logging :as ctl]
     [mongrove.conversion :as conversion])
   (:import
@@ -494,52 +491,6 @@
       (Projections/fields [(Projections/exclude exclude-names)]))))
 
 
-(defn- oplog-to-command
-  "Info taken from https://www.compose.com/articles/the-mongodb-oplog-and-node-js/
-  and https://docs.mongodb.com/manual/reference/command/"
-  [oplog]
-  (case (:op oplog)
-    "i"
-    (let [doc (:o oplog)
-          [db-name coll-name] (string/split (:ns oplog) #"\.")]
-      [db-name {:insert coll-name
-                :documents [doc]}])
-    "u"
-    (let [doc (:o oplog)
-          [db-name coll-name] (string/split (:ns oplog) #"\.")
-          query (:o2 oplog)]
-      [db-name {:update coll-name
-                :updates [{:q query
-                           :u doc}]}])
-
-    "d"
-    (let [doc (:o oplog)
-          [db-name coll-name] (string/split (:ns oplog) #"\.")]
-      [db-name {:delete coll-name
-                :deletes [{:q doc}]}])
-
-    nil))
-
-
-(defn- parse-json
-  "Parse the received input as json"
-  [input]
-  (try
-    (json/parse-string input true)
-    (catch Exception e
-      (println e)
-      nil)))
-
-
-(defn- parse-mongoshake-oplog
-  [input]
-  (let [shake-map (parse-json input)
-        doc (reduce (fn [a m]
-                      (assoc a (:Name m)
-                             (:Value m)))
-                    {} (:o shake-map))]
-    (assoc shake-map :o doc)))
-
 ;; API usage
 
 (comment
@@ -578,21 +529,6 @@
 
   (get-indexes test-db mongo-coll)
 
-  ;; oplog related work
-  (require '[clojure.java.io :as io])
-  (defn- read-file
-  "Read a file into a vector of strings.
-  This is used for local testing in repl"
-  [f]
-  (with-open [rdr (io/reader (io/input-stream f))]
-    (reduce conj [] (line-seq rdr))))
-
-  (def command* (oplog-to-command (parse-mongoshake-oplog (first (read-file "shake-input.json")))))
-  (run-command (get-db client (first command*)) (second command*))
-
-
-  (def command* (oplog-to-command (parse-json (first (read-file "input.json")))))
-  (run-command (get-db client (first command*)) (second command*))
   )
 
 
