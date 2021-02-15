@@ -471,10 +471,32 @@
   ([^MongoDatabase db command]
    (run-command db nil command))
   ([^MongoDatabase db ^ClientSession session command]
-   (let [bson-command (conversion/to-bson-document command)]
-     (if session
-       (.runCommand db session bson-command)
-       (.runCommand db bson-command)))))
+   (let [op (:cmd command)]
+     (case op
+       :drop
+       (if session
+         (drop-collection db session (:coll command))
+         (drop-collection db (:coll command)))
+
+       :drop-db
+       (if session
+         (drop-database db session)
+         (drop-database db))
+
+       :index
+       (if session
+         (create-index db session (:coll command) (:index-spec command))
+         (create-index db (:coll command) (:index-spec command)))
+
+       :drop-index
+       (if session
+         (drop-index db session (:coll command) (:name command))
+         (drop-index db (:coll command) (:name command)))
+
+       (let [bson-command (conversion/to-bson-document command)]
+         (if session
+           (.runCommand db session bson-command)
+           (.runCommand db bson-command)))))))
 ;;;
 ;;; Util
 ;;;

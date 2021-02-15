@@ -1,6 +1,7 @@
 (ns mongrove.utils
   (:require
     [cheshire.core :as json]
+    [clojure.set :as cset]
     [clojure.string :as string]
     [mongrove.conversion :as conversion]
     [mongrove.core :as mc])
@@ -85,6 +86,33 @@
           [db-name coll-name] (string/split (:ns oplog) #"\.")]
       [db-name {:delete coll-name
                 :deletes [{:q doc}]}])
+
+    "c"
+    (let [op (:o oplog)
+          command (first (cset/intersection #{:drop
+                                              :dropDatabase
+                                              :createIndexes
+                                              :dropIndexes}
+                                            (set (keys op))))
+          coll-name (get op command)
+          db-name (first (string/split (:ns oplog) #"\."))]
+      (case command
+        :drop
+        [db-name {:cmd :drop
+                  :coll coll-name}]
+
+        :dropDatabase
+        [db-name {:cmd :drop-db}]
+
+        :createIndexes
+        [db-name {:cmd :index
+                  :coll coll-name
+                  :index-spec (:key op)}]
+
+        :dropIndexes
+        [db-name {:cmd :drop-index
+                  :coll coll-name
+                  :name (:index op)}]))
 
     nil))
 
