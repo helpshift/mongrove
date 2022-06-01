@@ -7,7 +7,8 @@
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [org.mongodb/mongodb-driver-sync "4.6.0"]
                  [org.mongodb/mongodb-driver-reactivestreams "4.6.0"]
-                 [org.clojure/tools.logging "1.1.0"]]
+                 [org.clojure/tools.logging "1.1.0"]
+                 [org.clojure/core.async "1.5.648"]]
   :repl-options {:init-ns mongrove.core}
   :jvm-opts ^:replace ["-Duser.timezone=UTC"
                        "-Dloglevel=DEBUG"

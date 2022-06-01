@@ -1,6 +1,7 @@
 (ns ^{:author "Rhishikesh Joshi <rhishikeshj@gmail.com>", :doc "A clojure wrapper over the official MongoDB java reactive driver"} mongrove.reactive
   (:refer-clojure :exclude [update])
   (:require
+    [clojure.core.async :as async]
     [clojure.set :as cset]
     [clojure.tools.logging :as ctl]
     [mongrove.conversion :as conversion]
@@ -120,6 +121,37 @@
    (get-collection db coll :majority)))
 
 
+(defn subcriber
+  [publisher]
+  (let [buf-size 10
+        ch (async/chan buf-size)
+        subscriber (reify Subscriber
+                     (onSubscribe
+                       [this subscription]
+                       ;; this needs to happen in order to
+                       ;; make stuff happen, but how many items to
+                       ;; request is a consideration
+                       (.request subscription buf-size)
+                       (println "onSubscribe: " subscription))
+
+                     (onNext
+                       [this result]
+                       (println "onNext: " result)
+                       (async/>!! ch result))
+
+                     (onError
+                       [this t]
+                       (println "onError: " t)
+                       (async/close! ch))
+
+                     (onComplete
+                       [this]
+                       (println "onComplete")
+                       (async/close! ch)))]
+    (.subscribe publisher subscriber)
+    ch))
+
+
 (comment
   (def client (connect :replica-set [{:host "localhost"
                                       :port 27017
@@ -140,26 +172,9 @@
                                                {:id :reactive-arr-6}])]
     (def insert-many-publisher (.insertMany b-coll docs)))
 
-  (def subcriber
-    (reify Subscriber
-      (onSubscribe
-          [this subscription]
-        ;; this needs to happen in order to
-        ;; make stuff happen, but how many items to
-        ;; request is a consideration
-        (.request subscription 1)
-        (println "onSubscribe: " subscription))
 
-      (onNext
-          [this result]
-        (println "onNext: " result))
+  (def mongo-chan (subcriber insert-many-publisher))
+  (async/<!! mongo-chan)
 
-      (onError
-          [this t]
-        (println "onError: " t))
-
-      (onComplete
-          [this]
-        (println "onComplete"))))
 
   )
