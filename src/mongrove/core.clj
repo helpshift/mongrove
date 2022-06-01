@@ -50,9 +50,9 @@
    :retry-reads false
    :retry-writes false
    :connections-per-host 100
-   :socket-timeout 100000 ;ms
-   :connect-timeout 60000 ;ms
-   :max-connection-wait-time 60000 ;ms
+   :socket-timeout 100000 ; ms
+   :connect-timeout 60000 ; ms
+   :max-connection-wait-time 60000 ; ms
    })
 
 
@@ -320,9 +320,9 @@
    (let [collection (get-collection db coll)
          bson-query (conversion/to-bson-document query)
          iterator (doto ^FindIterable
-                      (if session
-                        (.find ^MongoCollection collection session bson-query)
-                        (.find ^MongoCollection collection bson-query))
+                   (if session
+                     (.find ^MongoCollection collection session bson-query)
+                     (.find ^MongoCollection collection bson-query))
                     (.projection (->projections only exclude)))]
      (clean (conversion/from-bson-document (.first ^FindIterable iterator) true)))))
 
@@ -343,9 +343,9 @@
         sort (when sort-by
                (reduce-kv #(assoc %1 %2 (int %3)) {} sort-by))
         iterator (doto ^FindIterable
-                     (if session
-                       (.find ^MongoCollection collection session bson-query)
-                       (.find ^MongoCollection collection bson-query))
+                  (if session
+                    (.find ^MongoCollection collection session bson-query)
+                    (.find ^MongoCollection collection bson-query))
                    (.projection (->projections only exclude))
                    (.sort (conversion/to-bson-document sort))
                    (.limit (if one? 1 limit))
@@ -455,9 +455,10 @@
          cursor (.cursor iterator)]
      (clean (m-cursor-iterate cursor true)))))
 
-;;;
-;;; Util
-;;;
+
+;;
+;; Util
+;;
 
 
 (defn- ->server-address
@@ -600,22 +601,22 @@
 
 
 (defn- exec-transaction
-    [^MongoClient client body-fn
-     {:keys [transaction-specs]}]
-    (let [transaction-specs (merge default-transaction-opts
-                                   transaction-specs)
-          session (start-transaction client transaction-specs)]
-      (try
-        ;; Create a ClientSession object from
-        ;; com.mongodb.client.MongoClient.startSession(ClientSessionOptions)
-        ;; Create client session options from ClientSessionOptions.Builder
-        (let [result (eval (body-fn session))]
-          (commit-transaction session)
-          result)
-        (catch Exception ex
-          (throw ex))
-        (finally
-          (.close ^com.mongodb.client.ClientSession session)))))
+  [^MongoClient client body-fn
+   {:keys [transaction-specs]}]
+  (let [transaction-specs (merge default-transaction-opts
+                                 transaction-specs)
+        session (start-transaction client transaction-specs)]
+    (try
+      ;; Create a ClientSession object from
+      ;; com.mongodb.client.MongoClient.startSession(ClientSessionOptions)
+      ;; Create client session options from ClientSessionOptions.Builder
+      (let [result (eval (body-fn session))]
+        (commit-transaction session)
+        result)
+      (catch Exception ex
+        (throw ex))
+      (finally
+        (.close ^com.mongodb.client.ClientSession session)))))
 
 
 (let [retryable-errors #{"TransientTransactionError"}]
