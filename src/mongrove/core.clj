@@ -56,7 +56,7 @@
    })
 
 
-(def ^:private read-preference-map
+(def read-preference-map
   "Map of all valid ReadPreference."
   {:primary (ReadPreference/primary)
    :secondary (ReadPreference/secondary)
@@ -65,7 +65,7 @@
    :nearest (ReadPreference/nearest)})
 
 
-(def ^:private read-concern-map
+(def read-concern-map
   "Map of all valid ReadConcerns."
   {:available ReadConcern/AVAILABLE
    :default ReadConcern/DEFAULT
@@ -75,7 +75,7 @@
    :snapshot ReadConcern/SNAPSHOT})
 
 
-(def ^:private write-concern-map
+(def write-concern-map
   "Map of all valid WriteConcerns."
   {;; WriteConcern names that are being used in 3.x MongoDB
    :unacknowledged WriteConcern/UNACKNOWLEDGED
