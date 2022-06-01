@@ -121,7 +121,7 @@
    (get-collection db coll :majority)))
 
 
-(defn subcriber
+(defn chan-subcriber
   [publisher]
   (let [buf-size 10
         ch (async/chan buf-size)
@@ -152,6 +152,69 @@
     ch))
 
 
+(defn basic-subcriber
+  [publisher onNext onComplete onError]
+  (let [subscriber (reify Subscriber
+                     (onSubscribe
+                       [this subscription]
+                       (.request subscription Integer/MAX_VALUE)
+                       (println "onSubscribe: " subscription))
+
+                     (onNext
+                       [this result]
+                       (println "onNext: " result)
+                       (onNext result))
+
+                     (onError
+                       [this t]
+                       (println "onError: " t)
+                       (onError t))
+
+                     (onComplete
+                       [this]
+                       (println "onComplete")
+                       (onComplete)))]
+    (.subscribe publisher subscriber)))
+
+
+(deftype ValueSubscriber
+  [pr ^:unsynchronized-mutable value]
+
+  Subscriber
+
+  (onSubscribe
+    [this subscription]
+    (.request subscription Integer/MAX_VALUE)
+    (println "onSubscribe: " subscription)
+    this)
+
+
+  (onNext
+    [this result]
+    (println "onNext: " result)
+    (set! value result))
+
+
+  (onError
+    [this t]
+    (println "onError: " t)
+    (deliver pr t))
+
+
+  (onComplete
+    [this]
+    (println "onComplete:: " this)
+    (deliver pr value)))
+
+
+(defn value-subcriber
+  [publisher]
+  (let [val (promise)
+        subscriber (ValueSubscriber. val [])]
+    (.subscribe publisher subscriber)
+    val))
+
+
 (comment
   (def client (connect :replica-set [{:host "localhost"
                                       :port 27017
@@ -167,14 +230,20 @@
   (def insert-one-publisher (.insertOne test-coll (conversion/to-bson-document {:id :reactive-2})))
 
   (let [b-coll (get-collection test-db "b")
-        docs (mapv conversion/to-bson-document [{:id :reactive-arr-4}
-                                               {:id :reactive-arr-5}
-                                               {:id :reactive-arr-6}])]
+        docs (mapv conversion/to-bson-document [{:id :reactive-arr-41}
+                                                {:id :reactive-arr-51}
+                                                {:id :reactive-arr-61}])]
     (def insert-many-publisher (.insertMany b-coll docs)))
 
 
-  (def mongo-chan (subcriber insert-many-publisher))
+  (def mongo-chan (chan-subcriber insert-many-publisher))
   (async/<!! mongo-chan)
 
+  (basic-subcriber insert-many-publisher
+                   #(println "client next: " %)
+                   #(println "client complete")
+                   #(println "client error: " %))
+
+  (def p (value-subcriber insert-many-publisher))
 
   )
