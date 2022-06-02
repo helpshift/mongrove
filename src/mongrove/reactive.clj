@@ -12,6 +12,7 @@
     (com.mongodb.client.model
       CreateCollectionOptions)
     (com.mongodb.reactivestreams.client
+      FindPublisher
       MongoClient
       MongoClients
       MongoCollection
@@ -185,25 +186,21 @@
   (onSubscribe
     [this subscription]
     (.request subscription Integer/MAX_VALUE)
-    (println "onSubscribe: " subscription)
     this)
 
 
   (onNext
     [this result]
-    (println "onNext: " result)
     (set! value result))
 
 
   (onError
     [this t]
-    (println "onError: " t)
     (deliver pr t))
 
 
   (onComplete
     [this]
-    (println "onComplete:: " this)
     (deliver pr value)))
 
 
@@ -227,23 +224,67 @@
   (def test-db (get-db client "test_reactions"))
 
   (def test-coll (get-collection test-db "a"))
+  ;; insert-one
   (def insert-one-publisher (.insertOne test-coll (conversion/to-bson-document {:id :reactive-2})))
-
-  (let [b-coll (get-collection test-db "b")
-        docs (mapv conversion/to-bson-document [{:id :reactive-arr-41}
-                                                {:id :reactive-arr-51}
-                                                {:id :reactive-arr-61}])]
-    (def insert-many-publisher (.insertMany b-coll docs)))
-
-
-  (def mongo-chan (chan-subcriber insert-many-publisher))
-  (async/<!! mongo-chan)
-
-  (basic-subcriber insert-many-publisher
+  (basic-subcriber insert-one-publisher
                    #(println "client next: " %)
                    #(println "client complete")
                    #(println "client error: " %))
 
-  (def p (value-subcriber insert-many-publisher))
+  ;; insert-many valuesubscriber
+  (let [b-coll (get-collection test-db "b")
+        docs (mapv conversion/to-bson-document [{:name :reactive-arr-42}
+                                                {:name :reactive-arr-53}
+                                                {:name :reactive-arr-64}])
+        p (value-subcriber (.insertMany b-coll docs))]
+    (println "Documents inserted : " @p))
 
+
+  ;; insert-many chan-subscriber
+  (let [b-coll (get-collection test-db "b")
+        docs (mapv conversion/to-bson-document [{:name :reactive-arr-42}
+                                                {:name :reactive-arr-53}
+                                                {:name :reactive-arr-64}])
+        mongo-chan (chan-subcriber (.insertMany b-coll docs))]
+    (println "Got results on channel: " (async/<!! mongo-chan)))
+
+
+  ;; count docs
+  (let [b-coll (get-collection test-db "b")
+        c (value-subcriber (.countDocuments b-coll))]
+    (println "Number of documents is " @c))
+
+  ;; query
+  (let [collection (get-collection test-db "b")
+        only [:name]
+        exclude []
+        sort-by {:name 1}
+        skip 0
+        batch-size 10
+        limit 2
+        sort (when sort-by
+               (reduce-kv #(assoc %1 %2 (int %3)) {} sort-by))
+        bson-query (conversion/to-bson-document {})
+        iterator (doto ^FindPublisher
+                     (.find ^MongoCollection collection bson-query)
+                   (.projection (core/->projections only exclude))
+                   (.sort (conversion/to-bson-document sort))
+                   (.limit limit)
+                   (.skip skip)
+                   (.batchSize batch-size))
+        c (chan-subcriber iterator)
+        docs (async/into [] c)]
+    (println "Documents are " (async/<!! docs)))
+
+  ;; fetch-one
+  (let [collection (get-collection test-db "b")
+        only [:name]
+        exclude []
+        bson-query (conversion/to-bson-document {:name :reactive-arr-53})
+        iterator (doto ^FindPublisher
+                     (.find ^MongoCollection collection bson-query)
+                   (.projection (core/->projections only exclude))
+                   (.first))
+        c (value-subcriber iterator)]
+    (println "Document is " (conversion/from-bson-document @c true)))
   )

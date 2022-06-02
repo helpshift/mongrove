@@ -468,7 +468,7 @@
   (ServerAddress. ^String host ^int port))
 
 
-(defn- ->projections
+(defn ->projections
   "Take the includes and (optionally) excludes vector and convert
    them into org.bson.conversions.Bson"
   [includes & [excludes]]
