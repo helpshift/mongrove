@@ -5,7 +5,8 @@
     [clojure.set :as cset]
     [clojure.tools.logging :as ctl]
     [mongrove.conversion :as conversion]
-    [mongrove.core :as core])
+    [mongrove.core :as core]
+    [mongrove.utils :as utils :refer [client-settings write-concern-map ->projections]])
   (:import
     (com.mongodb
       WriteConcern)
@@ -86,7 +87,7 @@
   (let [hosts (map #(select-keys % [:host :port]) server-specs)
         opts (assoc (:opts (first server-specs) {})
                     :hosts hosts)
-        settings (core/client-settings opts)
+        settings (client-settings opts)
         conn (MongoClients/create settings)]
     conn))
 
@@ -96,7 +97,7 @@
   (let [hosts [(select-keys server-spec [:host :port])]
         opts (assoc (:opts server-spec {})
                     :hosts hosts)
-        settings (core/client-settings opts)
+        settings (client-settings opts)
         conn (MongoClients/create settings)]
     conn))
 
@@ -115,9 +116,9 @@
 (defn ^:public-api ^MongoCollection get-collection
   "Get the collection object from given db"
   ([^MongoDatabase db ^String coll write-concern]
-   {:pre [(core/write-concern-map write-concern)]}
+   {:pre [(write-concern-map write-concern)]}
    (.withWriteConcern (.getCollection db coll)
-                      ^WriteConcern (get core/write-concern-map write-concern)))
+                      ^WriteConcern (get write-concern-map write-concern)))
   ([^MongoDatabase db ^String coll]
    (get-collection db coll :majority)))
 
@@ -267,7 +268,7 @@
         bson-query (conversion/to-bson-document {})
         iterator (doto ^FindPublisher
                      (.find ^MongoCollection collection bson-query)
-                   (.projection (core/->projections only exclude))
+                   (.projection (->projections only exclude))
                    (.sort (conversion/to-bson-document sort))
                    (.limit limit)
                    (.skip skip)
@@ -283,7 +284,7 @@
         bson-query (conversion/to-bson-document {:name :reactive-arr-53})
         iterator (doto ^FindPublisher
                      (.find ^MongoCollection collection bson-query)
-                   (.projection (core/->projections only exclude))
+                   (.projection (->projections only exclude))
                    (.first))
         c (value-subcriber iterator)]
     (println "Document is " (conversion/from-bson-document @c true)))
