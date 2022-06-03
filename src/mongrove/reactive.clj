@@ -8,7 +8,10 @@
     [mongrove.core :as core]
     [mongrove.utils :as utils :refer [client-settings
                                       write-concern-map
-                                      ->projections]])
+                                      ->projections]]
+    [mongrove.utils.subscribers :as subscribers :refer [value-subscriber
+                                                        chan-subscriber
+                                                        basic-subscriber]])
   (:import
     (com.mongodb
       WriteConcern)
@@ -293,121 +296,6 @@
        (.listIndexes collection)))))
 
 
-;;
-;; Subcriber helpers
-;;
-
-(defn ^:public-api basic-subcriber
-  "Given an publisher and callbacks for a subcriber,
-  requests Integer/MAX_VALUE objects from subscription
-  and triggers appropriate callbacks"
-  [publisher onNext onComplete onError]
-  (let [subscriber (reify Subscriber
-                     (onSubscribe
-                       [this subscription]
-                       (.request subscription Integer/MAX_VALUE))
-
-                     (onNext
-                       [this result]
-                       (onNext result))
-
-                     (onError
-                       [this t]
-                       (onError t))
-
-                     (onComplete
-                       [this]
-                       (onComplete)))]
-    (.subscribe publisher subscriber)))
-
-
-;; This is a subscriber which returns
-;; a stream of values on a core.async channel
-;; FIXME: We need to find a way to remove use of mutables here
-;; We have used it because this seems like the way to implement
-;; a subscriber and also have state to get a handle on the subscription
-;; member to request more later.
-;; An alternate hack would be to request for all (Integer/MAX_VALUE) items
-;; upfront.
-(deftype ChanSubscriber
-  [ch ^:unsynchronized-mutable subs]
-
-  Subscriber
-
-  (onSubscribe
-    [this subscription]
-    (.request subscription 1)
-    (set! subs subscription))
-
-
-  (onNext
-    [this result]
-    (async/>!! ch result)
-    (.request subs 1))
-
-
-  (onError
-    [this t]
-    (async/>!! ch t)
-    (async/close! ch))
-
-
-  (onComplete
-    [this]
-    (async/close! ch)))
-
-
-(defn ^:public-api chan-subcriber
-  "Given a Publisher, this returns a channel
-  on which values from the publisher will be returned.
-  When the results are done, the channel will be closed"
-  [publisher]
-  (let [ch (async/chan)
-        subscriber (ChanSubscriber. ch nil)]
-    (.subscribe publisher subscriber)
-    ch))
-
-
-;; This is a subscriber which returns
-;; values in a promise
-(deftype ValueSubscriber
-  [pr ^:unsynchronized-mutable value]
-
-  Subscriber
-
-  (onSubscribe
-    [this subscription]
-    (.request subscription Integer/MAX_VALUE))
-
-
-  (onNext
-    [this result]
-    (set! value (conj value result)))
-
-
-  (onError
-    [this t]
-    (deliver pr t))
-
-
-  (onComplete
-    [this]
-    (deliver pr value)))
-
-
-(defn ^:public-api value-subcriber
-  "Given a Publisher, this returns a promise
-  which will be delivered on when the publisher completes,
-  either with success or will failure
-  on success, promise will be a collection of values returned
-  on error, promise will be the error"
-  [publisher]
-  (let [val (promise)
-        subscriber (ValueSubscriber. val [])]
-    (.subscribe publisher subscriber)
-    val))
-
-
 (comment
   (def client (connect :replica-set [{:host "localhost"
                                       :port 27017
@@ -423,7 +311,7 @@
   ;; insert-one
 
   (def insert-one-publisher (insert test-db "a" {:id :reactive-2}))
-  (basic-subcriber insert-one-publisher
+  (basic-subscriber insert-one-publisher
                    #(println "client next: " %)
                    #(println "client complete")
                    #(println "client error: " %))
@@ -436,7 +324,7 @@
                                 :dob (java.util.Date.)})
                      []
                      (vec (range 10)))
-        p (value-subcriber (insert test-db "b" docs :multi? true))]
+        p (value-subscriber (insert test-db "b" docs :multi? true))]
     (println "Documents inserted : " @p))
 
 
@@ -448,16 +336,16 @@
                                 :dob (java.util.Date.)})
                      []
                      (vec (range 10)))
-        mongo-chan (chan-subcriber (insert test-db "b" docs :multi? true))]
+        mongo-chan (chan-subscriber (insert test-db "b" docs :multi? true))]
     (println "Got results on channel: " (async/<!! mongo-chan)))
 
 
   ;; count docs
-  (let [c (value-subcriber (count-docs test-db "b" {:age {:$gt 15}}))]
+  (let [c (value-subscriber (count-docs test-db "b" {:age {:$gt 15}}))]
     (println "Number of documents is " @c))
 
   ;; query, results on a channel
-  (let [ch (chan-subcriber (query test-db "b" {:age {:$gt 15}} :exclude [:name]))]
+  (let [ch (chan-subscriber (query test-db "b" {:age {:$gt 15}} :exclude [:name]))]
     (loop []
       (let [val (async/<!! ch)]
         (println val)
@@ -466,23 +354,23 @@
           (recur)))))
 
   ;; query, results in a promise
-  (let [pr (value-subcriber (query test-db "b" {:name "user-3"} :only [:age] :exclude [:name]))]
+  (let [pr (value-subscriber (query test-db "b" {:name "user-3"} :only [:age] :exclude [:name]))]
     (println "Documents are " @pr))
 
   ;; fetch-one
-  (let [c (value-subcriber (fetch-one test-db "b" {:name "user-4"} :exclude [:id]))]
+  (let [c (value-subscriber (fetch-one test-db "b" {:name "user-4"} :exclude [:id]))]
     (println "Document is " @c))
 
-  (let [c (value-subcriber (drop-collection test-db "a"))]
+  (let [c (value-subscriber (drop-collection test-db "a"))]
     (println "Collection a dropped " @c))
 
-  (let [c (value-subcriber (get-collection-names test-db))]
+  (let [c (value-subscriber (get-collection-names test-db))]
     (println "Collections are" @c))
 
-  (let [c (value-subcriber (get-database-names client))]
+  (let [c (value-subscriber (get-database-names client))]
     (println "Collections are" @c))
 
-  (let [c (value-subcriber (create-index test-db "b" (array-map :a 1 :b -1)))
-        indexes (value-subcriber (get-indexes test-db "b"))]
+  (let [c (value-subscriber (create-index test-db "b" (array-map :a 1 :b -1)))
+        indexes (value-subscriber (get-indexes test-db "b"))]
     (println "Indexes are " @indexes))
   )
