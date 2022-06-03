@@ -5,8 +5,10 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :signing {:gpg-key "helpshift-clojars-admin"}
   :dependencies [[org.clojure/clojure "1.10.0"]
-                 [org.mongodb/mongodb-driver-sync "4.1.1"]
-                 [org.clojure/tools.logging "1.1.0"]]
+                 [org.mongodb/mongodb-driver-sync "4.6.0"]
+                 [org.mongodb/mongodb-driver-reactivestreams "4.6.0"]
+                 [org.clojure/tools.logging "1.1.0"]
+                 [org.clojure/core.async "1.5.648"]]
   :repl-options {:init-ns mongrove.core}
   :jvm-opts ^:replace ["-Duser.timezone=UTC"
                        "-Dloglevel=DEBUG"
@@ -18,7 +20,7 @@
   :plugins [[lein-codox "0.10.7"]
             [lein-cloverage "1.1.2"]]
   :test-selectors {:default [(fn [ns & _]
-                                ;; ns annotations
+                               ;; ns annotations
                                (not (#{"mongrove.transactions-test"} (str ns))))
-                             (complement :cluster-tests)] ;; test-annotations
+                             (complement :cluster-tests)] ; test-annotations
                    :cluster-tests :cluster-tests})

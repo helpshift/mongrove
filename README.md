@@ -8,7 +8,15 @@ A Clojure library designed to interact with MongoDB.
 
 [![Helpshift](https://circleci.com/gh/helpshift/mongrove.svg?style=shield)](https://circleci.com/gh/helpshift/mongrove)
 
-## Usage
+## APIs
+Currently there are 2 ways in which the mongrove API can be used to interact with MongoDB
+
+The first is the wrapper over the traditional synchronous [Java API](https://www.mongodb.com/docs/drivers/java/sync/current/)
+And there is also the wrapper over the [Reactive Java API](https://www.mongodb.com/docs/drivers/reactive-streams/)
+
+
+
+### Sync Java API
 
 ```clojure
 (def client (connect :replica-set [{:host "localhost"
@@ -60,7 +68,92 @@ A Clojure library designed to interact with MongoDB.
       (println "Data in collection a " (query test-db "a" {}))))
 ```
 
-### API
+### Reactive Java API
+
+
+```clojure
+
+  (def client (connect :replica-set [{:host "localhost"
+                                      :port 27017
+                                      :opts {:read-preference :primary}}
+                                     ;; {:host "localhost"
+                                     ;;  :port 27018}
+                                     ;; {:host "localhost"
+                                     ;;  :port 27019}
+                                     ]))
+  (def test-db (get-db client "test_reactions"))
+
+  (def test-coll (get-collection test-db "a"))
+  ;; insert-one
+
+  (def insert-one-publisher (insert test-db "a" {:id :reactive-2}))
+  (basic-subscriber insert-one-publisher
+                   #(println "client next: " %)
+                   #(println "client complete")
+                   #(println "client error: " %))
+
+  ;; insert-many valuesubscriber
+  (let [b-coll (get-collection test-db "b")
+        docs (reduce #(conj %1 {:id %2
+                                :name (str "user-" %2)
+                                :age (rand-int 20)
+                                :dob (java.util.Date.)})
+                     []
+                     (vec (range 10)))
+        p (value-subscriber (insert test-db "b" docs :multi? true))]
+    (println "Documents inserted : " @p))
+
+
+  ;; insert-many chan-subscriber
+  (let [b-coll (get-collection test-db "b")
+        docs (reduce #(conj %1 {:id %2
+                                :name (str "user-" %2)
+                                :age (rand-int 20)
+                                :dob (java.util.Date.)})
+                     []
+                     (vec (range 10)))
+        mongo-chan (chan-subscriber (insert test-db "b" docs :multi? true))]
+    (println "Got results on channel: " (async/<!! mongo-chan)))
+
+
+  ;; count docs
+  (let [c (value-subscriber (count-docs test-db "b" {:age {:$gt 15}}))]
+    (println "Number of documents is " @c))
+
+  ;; query, results on a channel
+  (let [ch (chan-subscriber (query test-db "b" {:age {:$gt 15}} :exclude [:name]))]
+    (loop []
+      (let [val (async/<!! ch)]
+        (println val)
+        (when (some? val)
+          (println "Doc: " val)
+          (recur)))))
+
+  ;; query, results in a promise
+  (let [pr (value-subscriber (query test-db "b" {:name "user-3"} :only [:age] :exclude [:name]))]
+    (println "Documents are " @pr))
+
+  ;; fetch-one
+  (let [c (value-subscriber (fetch-one test-db "b" {:name "user-4"} :exclude [:id]))]
+    (println "Document is " @c))
+
+  (let [c (value-subscriber (drop-collection test-db "a"))]
+    (println "Collection a dropped " @c))
+
+  (let [c (value-subscriber (get-collection-names test-db))]
+    (println "Collections are" @c))
+
+  (let [c (value-subscriber (get-database-names client))]
+    (println "Collections are" @c))
+
+  (let [c (value-subscriber (create-index test-db "b" (array-map :a 1 :b -1)))
+        indexes (value-subscriber (get-indexes test-db "b"))]
+    (println "Indexes are " @indexes))
+
+```
+
+
+### API docs
 
 To view full API you can generate documentation using [codox](https://github.com/weavejester/codox)
 
@@ -80,9 +173,10 @@ The `test/mongrove/generative` folder contains generative tests for Mongo query 
 
 ## Next steps
 
-1. Add support for ACID transactions
+1. Add support for ACID transactions : ✅
 2. Add benchmarking results comparing against [Monger](https://github.com/michaelklishin/monger)
 3. Add support for sharded Mongo clusters
+4. Add support for Reactive Java API : ✅
 
 ## License
 

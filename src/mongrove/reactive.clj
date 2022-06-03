@@ -1,62 +1,37 @@
-(ns ^{:author "Rhishikesh Joshi <rhishikesh@helpshift.com>", :doc "A clojure wrapper over the official MongoDB java driver"} mongrove.core
+(ns ^{:author "Rhishikesh Joshi <rhishikeshj@gmail.com>", :doc "A clojure wrapper over the official MongoDB java reactive driver"} mongrove.reactive
   (:refer-clojure :exclude [update])
   (:require
+    [clojure.core.async :as async]
     [clojure.set :as cset]
     [clojure.tools.logging :as ctl]
     [mongrove.conversion :as conversion]
-    [mongrove.utils :as utils :refer [clean
-                                      read-concern-map
+    [mongrove.core :as core]
+    [mongrove.utils :as utils :refer [client-settings
                                       write-concern-map
-                                      read-preference-map
-                                      ->projections
-                                      client-settings]])
+                                      ->projections]]
+    [mongrove.utils.subscribers :as subscribers :refer [value-subscriber
+                                                        chan-subscriber
+                                                        basic-subscriber]])
   (:import
     (com.mongodb
-      Block
-      ClientSessionOptions
-      ClientSessionOptions$Builder
-      MongoClientSettings
-      MongoClientSettings$Builder
-      ReadConcern
-      ReadPreference
-      ServerAddress
-      TransactionOptions
-      TransactionOptions$Builder
       WriteConcern)
-    (com.mongodb.client
+    (com.mongodb.client.model
+      CreateCollectionOptions
+      IndexOptions
+      Indexes
+      UpdateOptions)
+    (com.mongodb.reactivestreams.client
       ClientSession
-      FindIterable
+      FindPublisher
       MongoClient
       MongoClients
       MongoCollection
-      MongoCursor
       MongoDatabase)
-    (com.mongodb.client.model
-      IndexOptions
-      Indexes
-      Projections
-      Sorts
-      UpdateOptions)
-    (com.mongodb.connection
-      ClusterSettings
-      ConnectionPoolSettings
-      SocketSettings)
     org.bson.Document
-    org.bson.conversions.Bson))
-
-
-(defn- m-cursor-iterate
-  "Build a lazy-seq using cursor object and applies transform-fn.
-  Keywordize-fields is a flag which is set to true using empty-query function"
-  [cursor keywordize-fields]
-  (if (.hasNext ^java.util.Iterator cursor)
-    (lazy-seq (cons (conversion/from-bson-document (.next ^java.util.Iterator cursor)
-                                                   keywordize-fields)
-                    (m-cursor-iterate cursor keywordize-fields)))
-    ;; Note: close is a void function and it returns nil. Because of
-    ;; that it still follows seq abstraction. close is used here to
-    ;; immediately close the cursor when its result-set is exhausted.
-    (.close ^MongoCursor cursor)))
+    org.bson.conversions.Bson
+    (org.reactivestreams
+      Publisher
+      Subscriber)))
 
 
 (defmulti connect
@@ -116,15 +91,16 @@
    (get-database-names client nil))
   ([^MongoClient client ^ClientSession session]
    (if session
-     (seq (.listDatabaseNames client session))
-     (seq (.listDatabaseNames client)))))
+     (.listDatabaseNames client session)
+     (.listDatabaseNames client))))
 
 
 (defn ^:public-api ^MongoCollection get-collection
   "Get the collection object from given db"
   ([^MongoDatabase db ^String coll write-concern]
    {:pre [(write-concern-map write-concern)]}
-   (.withWriteConcern (.getCollection db coll) ^WriteConcern (get write-concern-map write-concern)))
+   (.withWriteConcern (.getCollection db coll)
+                      ^WriteConcern (get write-concern-map write-concern)))
   ([^MongoDatabase db ^String coll]
    (get-collection db coll :majority)))
 
@@ -134,9 +110,9 @@
   ([^MongoDatabase db]
    (get-collection-names db nil))
   ([^MongoDatabase db ^ClientSession session]
-   (seq (if session
-          (.listCollectionNames db session)
-          (.listCollectionNames db)))))
+   (if session
+     (.listCollectionNames db session)
+     (.listCollectionNames db))))
 
 
 (defn ^:public-api drop-collection
@@ -186,12 +162,12 @@
                                             :or {only [] exclude []}}]
    (let [collection (get-collection db coll)
          bson-query (conversion/to-bson-document query)
-         iterator (doto ^FindIterable
+         iterator (doto ^FindPublisher
                    (if session
                      (.find ^MongoCollection collection session bson-query)
                      (.find ^MongoCollection collection bson-query))
                     (.projection (->projections only exclude)))]
-     (clean (conversion/from-bson-document (.first ^FindIterable iterator) true)))))
+     (.first ^FindPublisher iterator))))
 
 
 (defn ^:public-api query
@@ -209,7 +185,7 @@
         bson-query (conversion/to-bson-document query)
         sort (when sort-by
                (reduce-kv #(assoc %1 %2 (int %3)) {} sort-by))
-        iterator (doto ^FindIterable
+        iterator (doto ^FindPublisher
                   (if session
                     (.find ^MongoCollection collection session bson-query)
                     (.find ^MongoCollection collection bson-query))
@@ -217,9 +193,8 @@
                    (.sort (conversion/to-bson-document sort))
                    (.limit (if one? 1 limit))
                    (.skip skip)
-                   (.batchSize ^int batch-size))
-        cursor (.cursor iterator)]
-    (clean (m-cursor-iterate cursor true))))
+                   (.batchSize ^int batch-size))]
+    iterator))
 
 
 (defn ^:public-api count-docs
@@ -315,206 +290,87 @@
   ([^MongoDatabase db ^String coll]
    (get-indexes db nil coll))
   ([^MongoDatabase db ^ClientSession session ^String coll]
-   (let [collection (get-collection db coll)
-         iterator (if session
-                    (.listIndexes collection session)
-                    (.listIndexes collection))
-         cursor (.cursor iterator)]
-     (clean (m-cursor-iterate cursor true)))))
-
-
-;; API usage
-
-(comment
-  (def client (connect :replica-set [{:host "localhost"
-                                      :port 27017
-                                      :opts {:read-preference :primary}}]))
-  (def test-db (get-db client "test_driver"))
-
-  (def mongo-coll "mongo")
-
-  (ctl/info nil (query test-db mongo-coll {} :sort-by {:age 1}))
-
-  (count-docs test-db mongo-coll {:age {:$lt 10}})
-
-  (count-docs test-db mongo-coll {})
-
-  (doseq [i (range 10)]
-    (insert test-db mongo-coll {:id i
-                                :name (str "user-" i)
-                                :age (rand-int 20)
-                                :dob (java.util.Date.)} :multi? false))
-
-  (fetch-one test-db mongo-coll {:id 3} :only [:name])
-
-  (delete test-db mongo-coll {:age {:$gt 10}})
-
-  (update test-db mongo-coll {:age {:$lt 10}} {:$inc {:age 1}})
-
-  (create-index test-db mongo-coll (array-map :a 1 :b -1))
-
-  (get-indexes test-db mongo-coll)
-
-  )
-
-
-;; Transactions
-
-(def ^{:private true :doc "Default Mongo Transactions Opts"}
-  default-transaction-opts
-  {:read-preference (:primary read-preference-map)
-   :read-concern (:snapshot read-concern-map)
-   :write-concern (:majority write-concern-map)
-   :retry-on-errors false})
-
-
-(def ^{:private true :doc "Default Mongo ClientSession Opts"}
-  default-client-session-opts
-  {:causally-consistent true
-   :transaction-opts default-transaction-opts})
-
-
-(defn ^TransactionOptions transaction-options
-  "Default Transaction options."
-  [{:keys [read-preference
-           read-concern
-           write-concern] :as opts}]
-  (let [opts (merge default-transaction-opts opts)]
-    (if (= (:read-preference opts) :secondary)
-      (.build ^TransactionOptions$Builder
-       (doto ^TransactionOptions$Builder (TransactionOptions/builder)
-         (.readConcern (:read-concern opts))
-         (.writeConcern (:write-concern opts))
-         (.readPreference (com.mongodb.ReadPreference/secondary))))
-      (.build ^TransactionOptions$Builder
-       (doto ^TransactionOptions$Builder (TransactionOptions/builder)
-         (.readConcern (:read-concern opts))
-         (.writeConcern (:write-concern opts))
-         (.readPreference (com.mongodb.ReadPreference/primary)))))))
-
-
-(defn ^ClientSessionOptions client-session-options
-  "Default MongoDB client session options."
-  ;; We need transaction options here which should come from outside when
-  ;; running the transaction
-  [{:keys [causally-consistent
-           transaction-opts] :as opts}]
-  (let [opts (merge default-client-session-opts opts)]
-    (.build ^ClientSessionOptions$Builder
-     (doto ^ClientSessionOptions$Builder (ClientSessionOptions/builder)
-       (.causallyConsistent (:causally-consistent opts))
-       (.defaultTransactionOptions (transaction-options (:transaction-opts opts)))))))
-
-
-(defn- retryable-mongo-commit-ex?
-  "Commits will be retried for the following conditions.
-   additionally, transaction commit operations can also throw errors which
-   can help retry only the commit operation. Mongo also handles retries this way.
-   If the commit operation throws an error, it is retried 1 more time.
-   If the the errorLabels array field contains UnknownTransactionCommitResult -> retry commit"
-  [ex]
-  (and (instance? com.mongodb.MongoException ex)
-       (.hasErrorLabel ^com.mongodb.MongoException ex
-                       com.mongodb.MongoException/UNKNOWN_TRANSACTION_COMMIT_RESULT_LABEL)))
-
-
-(defn- retryable-mongo-transaction-ex?
-  "Commits will be retried for the following conditions
-   errorLabels array field contains TransientTransactionError -> retry"
-  [ex]
-  (and (instance? com.mongodb.MongoException ex)
-       (.hasErrorLabel ^com.mongodb.MongoException ex
-                       com.mongodb.MongoException/TRANSIENT_TRANSACTION_ERROR_LABEL)))
-
-
-(defn- start-transaction
-  [^MongoClient client transaction-specs]
-  (let [client-opts (client-session-options {:transaction-opts transaction-specs})
-        session (.startSession client client-opts)]
-    (.startTransaction session)
-    session))
-
-
-(defn- commit-transaction
-  [^com.mongodb.client.ClientSession session]
-  (.commitTransaction session))
-
-
-(defn- exec-transaction
-  [^MongoClient client body-fn
-   {:keys [transaction-specs]}]
-  (let [transaction-specs (merge default-transaction-opts
-                                 transaction-specs)
-        session (start-transaction client transaction-specs)]
-    (try
-      ;; Create a ClientSession object from
-      ;; com.mongodb.client.MongoClient.startSession(ClientSessionOptions)
-      ;; Create client session options from ClientSessionOptions.Builder
-      (let [result (eval (body-fn session))]
-        (commit-transaction session)
-        result)
-      (catch Exception ex
-        (throw ex))
-      (finally
-        (.close ^com.mongodb.client.ClientSession session)))))
-
-
-(let [retryable-errors #{"TransientTransactionError"}]
-  (defn ^:public-api run-in-transaction
-    "Execute the given code in a MongoDB transaction.
-     `client` : The MongoClient connection object
-     `body-fn` : The body-fn should be a function which takes 1 argument,
-      a ClientSession object. This session object needs to be
-      passed in to all the mongrove APIs which take a session arg.
-     `options`: Currently supported keys are :
-       `transaction-opts` {:read-preference :read-concern :write-concern :retry-on-errors}
-        If the transaction fails with a retryable error label, and retry-on-errors is true,
-        mongrove will keep retrying the transaction.
-        For other options, refer to the MongoDB documentation.
-        For default values chosen, refer to Jepsen's recommendations
-        here : http://jepsen.io/analyses/mongodb-4.2.6"
-    [^MongoClient client body-fn
-     {:keys [transaction-opts] :as options}]
-    (let [exp (try
-                (apply exec-transaction client body-fn options)
-                (catch com.mongodb.MongoCommandException cmex
-                  (if (and (:retry-on-errors transaction-opts)
-                           (retryable-errors (.getErrorLabels cmex)))
-                    :retry
-                    cmex)))]
-      (if (= exp :retry)
-        (recur client body-fn options)
-        exp))))
+   (let [collection (get-collection db coll)]
+     (if session
+       (.listIndexes collection session)
+       (.listIndexes collection)))))
 
 
 (comment
   (def client (connect :replica-set [{:host "localhost"
                                       :port 27017
                                       :opts {:read-preference :primary}}
-                                     {:host "localhost"
-                                      :port 27018}
-                                     {:host "localhost"
-                                      :port 27019}]))
-  (def test-db (get-db client "test_transactions"))
+                                     ;; {:host "localhost"
+                                     ;;  :port 27018}
+                                     ;; {:host "localhost"
+                                     ;;  :port 27019}
+                                     ]))
+  (def test-db (get-db client "test_reactions"))
 
-  (try
-    (delete test-db "a" {})
-    (delete test-db "b" {})
-    ;; Creating new collections is not supported
-    ;; in Mongo 4.0 so ensure that there exist collections
-    ;; a and b
-    (insert test-db "a" {:id 1})
-    (insert test-db "b" {:id 1})
+  (def test-coll (get-collection test-db "a"))
+  ;; insert-one
 
-    (run-in-transaction client
-                        (fn [session]
-                          ;; DO NOT ADD try-catch here. If you do this, exceptions
-                          ;; will not percolate to the transaction and it will get committed
-                          ;; successfully
-                          (insert test-db "a" {:a 42} :session session)
-                          ;; This will throw an exception
-                          (insert test-db "b" {:b (.toString nil)} :session session))
-                        {:transaction-opts {:retry-on-errors true}})
-    (catch Exception e
-      (println "Data in collection a " (query test-db "a" {}))))
+  (def insert-one-publisher (insert test-db "a" {:id :reactive-2}))
+  (basic-subscriber insert-one-publisher
+                   #(println "client next: " %)
+                   #(println "client complete")
+                   #(println "client error: " %))
+
+  ;; insert-many valuesubscriber
+  (let [b-coll (get-collection test-db "b")
+        docs (reduce #(conj %1 {:id %2
+                                :name (str "user-" %2)
+                                :age (rand-int 20)
+                                :dob (java.util.Date.)})
+                     []
+                     (vec (range 10)))
+        p (value-subscriber (insert test-db "b" docs :multi? true))]
+    (println "Documents inserted : " @p))
+
+
+  ;; insert-many chan-subscriber
+  (let [b-coll (get-collection test-db "b")
+        docs (reduce #(conj %1 {:id %2
+                                :name (str "user-" %2)
+                                :age (rand-int 20)
+                                :dob (java.util.Date.)})
+                     []
+                     (vec (range 10)))
+        mongo-chan (chan-subscriber (insert test-db "b" docs :multi? true))]
+    (println "Got results on channel: " (async/<!! mongo-chan)))
+
+
+  ;; count docs
+  (let [c (value-subscriber (count-docs test-db "b" {:age {:$gt 15}}))]
+    (println "Number of documents is " @c))
+
+  ;; query, results on a channel
+  (let [ch (chan-subscriber (query test-db "b" {:age {:$gt 15}} :exclude [:name]))]
+    (loop []
+      (let [val (async/<!! ch)]
+        (println val)
+        (when (some? val)
+          (println "Doc: " val)
+          (recur)))))
+
+  ;; query, results in a promise
+  (let [pr (value-subscriber (query test-db "b" {:name "user-3"} :only [:age] :exclude [:name]))]
+    (println "Documents are " @pr))
+
+  ;; fetch-one
+  (let [c (value-subscriber (fetch-one test-db "b" {:name "user-4"} :exclude [:id]))]
+    (println "Document is " @c))
+
+  (let [c (value-subscriber (drop-collection test-db "a"))]
+    (println "Collection a dropped " @c))
+
+  (let [c (value-subscriber (get-collection-names test-db))]
+    (println "Collections are" @c))
+
+  (let [c (value-subscriber (get-database-names client))]
+    (println "Collections are" @c))
+
+  (let [c (value-subscriber (create-index test-db "b" (array-map :a 1 :b -1)))
+        indexes (value-subscriber (get-indexes test-db "b"))]
+    (println "Indexes are " @indexes))
   )
