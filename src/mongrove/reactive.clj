@@ -293,34 +293,14 @@
        (.listIndexes collection)))))
 
 
-(defn chan-subcriber
-  [publisher]
-  (let [buf-size 10
-        ch (async/chan buf-size)
-        subscriber (reify Subscriber
-                     (onSubscribe
-                       [this subscription]
-                       ;; this needs to happen in order to
-                       ;; make stuff happen, but how many items to
-                       ;; request is a consideration
-                       (.request subscription buf-size))
+;;
+;; Subcriber helpers
+;;
 
-                     (onNext
-                       [this result]
-                       (async/>!! ch result))
-
-                     (onError
-                       [this t]
-                       (async/close! ch))
-
-                     (onComplete
-                       [this]
-                       (async/close! ch)))]
-    (.subscribe publisher subscriber)
-    ch))
-
-
-(defn basic-subcriber
+(defn ^:public-api basic-subcriber
+  "Given an publisher and callbacks for a subcriber,
+  requests Integer/MAX_VALUE objects from subscription
+  and triggers appropriate callbacks"
   [publisher onNext onComplete onError]
   (let [subscriber (reify Subscriber
                      (onSubscribe
@@ -341,6 +321,55 @@
     (.subscribe publisher subscriber)))
 
 
+;; This is a subscriber which returns
+;; a stream of values on a core.async channel
+;; FIXME: We need to find a way to remove use of mutables here
+;; We have used it because this seems like the way to implement
+;; a subscriber and also have state to get a handle on the subscription
+;; member to request more later.
+;; An alternate hack would be to request for all (Integer/MAX_VALUE) items
+;; upfront.
+(deftype ChanSubscriber
+  [ch ^:unsynchronized-mutable subs]
+
+  Subscriber
+
+  (onSubscribe
+    [this subscription]
+    (.request subscription 1)
+    (set! subs subscription))
+
+
+  (onNext
+    [this result]
+    (async/>!! ch result)
+    (.request subs 1))
+
+
+  (onError
+    [this t]
+    (async/>!! ch t)
+    (async/close! ch))
+
+
+  (onComplete
+    [this]
+    (async/close! ch)))
+
+
+(defn ^:public-api chan-subcriber
+  "Given a Publisher, this returns a channel
+  on which values from the publisher will be returned.
+  When the results are done, the channel will be closed"
+  [publisher]
+  (let [ch (async/chan)
+        subscriber (ChanSubscriber. ch nil)]
+    (.subscribe publisher subscriber)
+    ch))
+
+
+;; This is a subscriber which returns
+;; values in a promise
 (deftype ValueSubscriber
   [pr ^:unsynchronized-mutable value]
 
@@ -348,13 +377,12 @@
 
   (onSubscribe
     [this subscription]
-    (.request subscription Integer/MAX_VALUE)
-    this)
+    (.request subscription Integer/MAX_VALUE))
 
 
   (onNext
     [this result]
-    (set! value result))
+    (set! value (conj value result)))
 
 
   (onError
@@ -367,7 +395,12 @@
     (deliver pr value)))
 
 
-(defn value-subcriber
+(defn ^:public-api value-subcriber
+  "Given a Publisher, this returns a promise
+  which will be delivered on when the publisher completes,
+  either with success or will failure
+  on success, promise will be a collection of values returned
+  on error, promise will be the error"
   [publisher]
   (let [val (promise)
         subscriber (ValueSubscriber. val [])]
@@ -420,18 +453,25 @@
 
 
   ;; count docs
-  (let [c (value-subcriber (count-docs test-db "b" {}))]
+  (let [c (value-subcriber (count-docs test-db "b" {:age {:$gt 15}}))]
     (println "Number of documents is " @c))
 
-  ;; query
-  (let [c (chan-subcriber (query test-db "b" {:name "user-3"} :only [:age] :exclude [:name]))
-        docs (async/into [] c)]
-    (println "Documents are " (async/<!! docs)))
+  ;; query, results on a channel
+  (let [ch (chan-subcriber (query test-db "b" {:age {:$gt 15}} :exclude [:name]))]
+    (loop []
+      (let [val (async/<!! ch)]
+        (println val)
+        (when (some? val)
+          (println "Doc: " val)
+          (recur)))))
+
+  ;; query, results in a promise
+  (let [pr (value-subcriber (query test-db "b" {:name "user-3"} :only [:age] :exclude [:name]))]
+    (println "Documents are " @pr))
 
   ;; fetch-one
   (let [c (value-subcriber (fetch-one test-db "b" {:name "user-4"} :exclude [:id]))]
     (println "Document is " @c))
-
 
   (let [c (value-subcriber (drop-collection test-db "a"))]
     (println "Collection a dropped " @c))
@@ -443,6 +483,6 @@
     (println "Collections are" @c))
 
   (let [c (value-subcriber (create-index test-db "b" (array-map :a 1 :b -1)))
-        indexes (async/into [] (chan-subcriber (get-indexes test-db "b")))]
-    (println "Indexes are " (async/<!! indexes)))
+        indexes (value-subcriber (get-indexes test-db "b"))]
+    (println "Indexes are " @indexes))
   )
