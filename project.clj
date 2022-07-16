@@ -1,11 +1,11 @@
-(defproject helpshift/mongrove "0.2.0"
+(defproject com.github.dfbernal/mongrove "0.2.1"
   :description "An idiomatic Clojure wrapper for MongoDB java-driver 4.x"
   :url "https://medium.com/helpshift-engineering"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :signing {:gpg-key "helpshift-clojars-admin"}
   :dependencies [[org.clojure/clojure "1.10.0"]
-                 [org.mongodb/mongodb-driver-sync "4.1.1"]
+                 [org.mongodb/mongodb-driver-sync "4.2.3"]
                  [org.clojure/tools.logging "1.1.0"]]
   :repl-options {:init-ns mongrove.core}
   :jvm-opts ^:replace ["-Duser.timezone=UTC"

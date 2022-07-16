@@ -11,6 +11,7 @@
       ClientSessionOptions$Builder
       MongoClientSettings
       MongoClientSettings$Builder
+      MongoCredential
       ReadConcern
       ReadPreference
       ServerAddress
@@ -20,6 +21,7 @@
     (com.mongodb.client
       ClientSession
       FindIterable
+      DistinctIterable
       MongoClient
       MongoClients
       MongoCollection
@@ -167,7 +169,8 @@
   "Initialize a ConnectionPoolSettings object from given options map.
   Available options : :read-preference :read-concern :write-concern
   :retry-reads :retry-writes"
-  [{:keys [read-preference read-concern write-concern
+  [{{:keys [user-name password source]} :credential
+    :keys [read-preference read-concern write-concern
            retry-reads retry-writes] :as opts}]
   {:pre [(or (nil? read-preference)
              (read-preference-map read-preference))
@@ -178,6 +181,7 @@
   (let [opts (merge default-opts opts)
         {:keys [read-preference read-concern write-concern
                 retry-reads retry-writes]} opts
+        credential (MongoCredential/createCredential user-name source (char-array password))
         builder (doto (MongoClientSettings/builder)
                   (socket-settings opts)
                   (cluster-settings opts)
@@ -186,6 +190,7 @@
                   (.writeConcern (get write-concern-map write-concern))
                   (.readPreference (get read-preference-map read-preference))
                   (.retryWrites retry-writes)
+                  (.credential credential)
                   ;; @TODO : Documentation states that this method
                   ;; exists ! yet we get method not found exception
                   #_(.retryReads retry-reads))]
@@ -366,6 +371,23 @@
      (if session
        (.countDocuments collection session bson-query)
        (.countDocuments collection bson-query)))))
+
+(defn ^:public-api distinct-vals
+  "Gets the distinct values for a field name that matches the filter."
+  ([^MongoDatabase db
+    ^String coll
+    ^String field-name
+    ^Class class-type
+    filter & {:keys [only exclude session]
+              :or {only [] exclude []}}]
+   (let [collection (get-collection db coll)
+         bson-filter (conversion/to-bson-document filter)
+         ^DistinctIterable iterator
+         (if session
+           (.distinct ^MongoCollection collection session field-name bson-filter class-type)
+           (.distinct ^MongoCollection collection field-name bson-filter class-type))
+         cursor (.cursor iterator)]
+     (iterator-seq cursor))))
 
 
 (defn ^:public-api delete
