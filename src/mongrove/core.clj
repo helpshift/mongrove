@@ -181,7 +181,8 @@
   (let [opts (merge default-opts opts)
         {:keys [read-preference read-concern write-concern
                 retry-reads retry-writes]} opts
-        credential (MongoCredential/createCredential user-name source (char-array password))
+        credential (when (and user-name password)
+                     (MongoCredential/createCredential user-name source (char-array password)))
         builder (doto (MongoClientSettings/builder)
                   (socket-settings opts)
                   (cluster-settings opts)
@@ -190,11 +191,10 @@
                   (.writeConcern (get write-concern-map write-concern))
                   (.readPreference (get read-preference-map read-preference))
                   (.retryWrites retry-writes)
-                  (.credential credential)
                   ;; @TODO : Documentation states that this method
                   ;; exists ! yet we get method not found exception
                   #_(.retryReads retry-reads))]
-    (.build builder)))
+    (.build (if credential (.credential builder credential) builder))))
 
 
 (defmulti connect
@@ -415,7 +415,7 @@
              (write-concern-map write-concern))]}
   (let [collection ^MongoCollection (get-collection db coll write-concern)
         bson-query (conversion/to-bson-document query)
-        bson-update (conversion/to-bson-document doc)
+        bson-update (if (seq? doc) (map conversion/to-bson-document doc) (conversion/to-bson-document doc))
         update-options (.upsert (UpdateOptions.) upsert?)]
     (if multi?
       (if session
