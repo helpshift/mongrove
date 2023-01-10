@@ -11,6 +11,7 @@
       ClientSessionOptions$Builder
       MongoClientSettings
       MongoClientSettings$Builder
+      MongoCredential
       ReadConcern
       ReadPreference
       ServerAddress
@@ -20,6 +21,7 @@
     (com.mongodb.client
       ClientSession
       FindIterable
+      DistinctIterable
       MongoClient
       MongoClients
       MongoCollection
@@ -167,7 +169,8 @@
   "Initialize a ConnectionPoolSettings object from given options map.
   Available options : :read-preference :read-concern :write-concern
   :retry-reads :retry-writes"
-  [{:keys [read-preference read-concern write-concern
+  [{{:keys [username password source]} :credential
+    :keys [read-preference read-concern write-concern
            retry-reads retry-writes] :as opts}]
   {:pre [(or (nil? read-preference)
              (read-preference-map read-preference))
@@ -178,6 +181,8 @@
   (let [opts (merge default-opts opts)
         {:keys [read-preference read-concern write-concern
                 retry-reads retry-writes]} opts
+        credential (when (and username password)
+                     (MongoCredential/createCredential username source (char-array password)))
         builder (doto (MongoClientSettings/builder)
                   (socket-settings opts)
                   (cluster-settings opts)
@@ -186,6 +191,7 @@
                   (.writeConcern (get write-concern-map write-concern))
                   (.readPreference (get read-preference-map read-preference))
                   (.retryWrites retry-writes)
+                  (cond-> (some? credential) (.credential credential))
                   ;; @TODO : Documentation states that this method
                   ;; exists ! yet we get method not found exception
                   #_(.retryReads retry-reads))]
