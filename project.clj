@@ -1,4 +1,4 @@
-(defproject helpshift/mongrove "0.2.0"
+(defproject helpshift/mongrove "0.3.0"
   :description "An idiomatic Clojure wrapper for MongoDB java-driver 4.x"
   :url "https://medium.com/helpshift-engineering"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
