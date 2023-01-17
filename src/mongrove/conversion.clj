@@ -43,6 +43,18 @@
   (to-bson-document [^java.util.Date input]
     input)
 
+  java.time.LocalDate
+  (to-bson-document [^java.time.LocalDate input]
+    input)
+
+  java.time.LocalDateTime
+  (to-bson-document [^java.time.LocalDateTime input]
+    input)
+
+  java.time.Instant
+  (to-bson-document [^java.time.Instant input]
+    input)
+
   Ratio
   (to-bson-document [^Ratio input]
     (double input))
