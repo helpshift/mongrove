@@ -374,6 +374,23 @@
        (.countDocuments collection bson-query)))))
 
 
+(defn ^:public-api distinct-vals
+  "Gets the distinct values for a field name that matches the filter."
+  ([^MongoDatabase db
+    ^String coll
+    ^String field-name
+    ^Class class-type
+    filter & {:keys [session]}]
+   (let [collection (get-collection db coll)
+         bson-filter (conversion/to-bson-document filter)
+         ^DistinctIterable iterator
+         (if session
+           (.distinct ^MongoCollection collection session field-name bson-filter class-type)
+           (.distinct ^MongoCollection collection field-name bson-filter class-type))
+         cursor (.cursor iterator)]
+     (iterator-seq cursor))))
+
+
 (defn ^:public-api delete
   "Delete a document from the collection that matches `query`.
   wc is the write-concern which should be a key from write-concern-map and is optional.

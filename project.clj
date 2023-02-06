@@ -5,7 +5,7 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :signing {:gpg-key "helpshift-clojars-admin"}
   :dependencies [[org.clojure/clojure "1.10.0"]
-                 [org.mongodb/mongodb-driver-sync "4.1.1"]
+                 [org.mongodb/mongodb-driver-sync "4.8.0"]
                  [org.clojure/tools.logging "1.1.0"]]
   :repl-options {:init-ns mongrove.core}
   :jvm-opts ^:replace ["-Duser.timezone=UTC"
