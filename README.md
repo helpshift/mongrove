@@ -1,27 +1,43 @@
-# mongrove
+<br />
+<img src="helpshift-logo.png" alt="drawing" width="100" height="100"/>
 
-<img src="helpshift-logo.png" alt="drawing" width="200" height="200"/>
-
-A Clojure library designed to interact with MongoDB.
-
-## Status
+## Mongrove - A clojure mongoDB client
 
 [![Helpshift](https://circleci.com/gh/helpshift/mongrove.svg?style=shield)](https://circleci.com/gh/helpshift/mongrove)
 
-## Usage
+```clojure
+[helpshift/mongrove "0.3.0"]
+```
+
+Mongrove is a Clojure library designed to interact with MongoDB.
+
+
+## Quickstart
+
+Add the necessary dependency to your project:
+
+```clojure
+Leiningen: [helpshift/mongrove "0.3.0"] ; or
+deps.edn:   helpshift/mongrove {:mvn/version "0.3.0"}
+```
+
+Connect to a mongoDB (running locally on port 27017)
 
 ```clojure
 (def client (connect :replica-set [{:host "localhost"
                                     :port 27017
                                     :opts {:read-preference :primary}}]))
-(def test-db (get-db client "test_driver"))
+```
 
+Perform some basic CRUD operations
+
+```clojure
+(def test-db (get-db client "test_driver"))
 (def mongo-coll "mongo")
 
 (query test-db mongo-coll {} :sort-by {:age 1})
 
 (count-docs test-db mongo-coll {:age {:$lt 10}})
-
 (count-docs test-db mongo-coll {})
 
 (doseq [i (range 10)]
@@ -35,9 +51,11 @@ A Clojure library designed to interact with MongoDB.
 (delete test-db mongo-coll {:age {:$gt 10}})
 
 (update test-db mongo-coll {:age {:$lt 10}} {:$inc {:age 1}})
+```
 
-;; For using multi-document transactions,
 
+For using multi-document transactions
+```clojure
 (try
     (delete test-db "a" {})
     (delete test-db "b" {})
@@ -60,7 +78,7 @@ A Clojure library designed to interact with MongoDB.
       (println "Data in collection a " (query test-db "a" {}))))
 ```
 
-### API
+## Documentation 📄
 
 To view full API you can generate documentation using [codox](https://github.com/weavejester/codox)
 
@@ -78,11 +96,13 @@ If you want to test against a different mongo cluster, please change the options
 
 The `test/mongrove/generative` folder contains generative tests for Mongo query operators. These tests are primarily aimed comparing query results across 2 different Mongo clusters, something you might need to do when testing for an upgrade !
 
-## Next steps
+## Authors
 
-1. Add support for ACID transactions
-2. Add benchmarking results comparing against [Monger](https://github.com/michaelklishin/monger)
-3. Add support for sharded Mongo clusters
+<div align="center">
+  <a href="https://github.com/helpshift/mongrove/graphs/contributors">
+      <img src="https://contrib.rocks/image?repo=helpshift/mongrove" />
+  </a>
+</div>
 
 ## License
 
